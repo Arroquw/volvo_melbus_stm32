@@ -1,0 +1,9 @@
+Release/
+Debug/
+*.elf
+*.o
+*.ld
+*.mxproject
+.settings/
+.metadata/
+RemoteSystemsTempFiles/
