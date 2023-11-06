@@ -112,6 +112,12 @@ static void SetPinToOutput(uint16_t);
 static void SetClockToInt(void);
 void SendByteToMelbus(void);
 void SendText(void);
+void SendTrackInfo(byte trackInfo[]);
+void SendCartridgeInfo(byte trackInfo[]);
+void changeCD(byte trackInfo[], byte *disk);
+void fixTrack(byte *disk);
+void nextTrack();
+void prevTrack();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -125,6 +131,7 @@ volatile bool byteIsRead = false;
 byte byteToSend = 0;
 byte track = 1;
 byte md = 1;
+byte cd = 1;
 byte textHeader[] = {0xFB, 0xD8, 0xFA, 0x00 };
 byte textRow = 2;
 byte customText[36] = "visualapproach";
@@ -172,14 +179,13 @@ const byte commands[E_LIST_MAX][7] = {
 		[E_MRB_1] = MRB_1,  // 0 now we are master and can send stuff (like text) to the display!
 		[E_MI] = MI,     // 1 main init
 		[E_SI] = SI,     // 2 sec init (00 1E ED respond 0xC5 !!)
-		[E_MRB_2] = MRB_2,  // 5 alternative master req bc
-		[E_IGN_OFF] = IGN_OFF, // 21
-		[E_MD_CIR] = MD_CIR, // 22
-		[E_MD_TIR] = MD_TIR, // 23
-		[E_MD_NXT] = MD_NXT, // 24
-		[E_MD_PRV] = MD_PRV, // 25
-		[E_MD_CHG] = MD_CHG, // 26
-		[E_MD_PUP] = MD_PUP, // 27
+		[E_MRB_2] = MRB_2,  // 3 alternative master req bc
+		[E_IGN_OFF] = IGN_OFF, // 4
+		[E_MD_CIR] = MD_CIR, // 5
+		[E_MD_TIR] = MD_TIR, // 6
+		[E_MD_NXT] = MD_NXT, // 7
+		[E_MD_PRV] = MD_PRV, // 8
+		[E_MD_CHG] = MD_CHG, // 9
 		[E_MD_PDN] = MD_PDN, // 28
 		[E_MD_FFW] = MD_FFW, // 29
 		[E_MD_FRW] = MD_FRW, // 30
@@ -276,7 +282,7 @@ int main(void)
 							ConnTicks = 0;  //reset age
 							switch (cmd) {
 							case E_MRB_1:
-								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_CLOCK_Pin) == GPIO_PIN_RESET) {
+								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
 									if (byteIsRead) {
 										byteIsRead = false;
 										if (melbus_ReceivedByte == MD_MASTER_ID) {
@@ -290,7 +296,7 @@ int main(void)
 								break;
 							case E_MI: /* Intentional fall-through */
 							case E_SI:
-								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_CLOCK_Pin) == GPIO_PIN_RESET) {
+								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
 									if(byteIsRead) {
 										byteIsRead = false;
 										if (melbus_ReceivedByte == MD_BASE_ID) {
@@ -305,59 +311,127 @@ int main(void)
 								}
 								break;
 							case E_MRB_2:
+								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
+									if (byteIsRead) {
+										byteIsRead = false;
+										if (melbus_ReceivedByte == MD_MASTER_ID) {
+											byteToSend = MD_MASTER_ID;
+											SendByteToMelbus();
+											SendText();
+											break;
+										}
+										//if (melbus_ReceivedByte == MASTER_ID) {
+											//  byteToSend = MASTER_ID;
+											//  SendByteToMelbus();
+											//  SendText();
+										//  SendTextI2c();
+										//  break;
+										//}
+									}
+								}
+								//Serial.println("MRB 2");
 
 								break;
 							case E_IGN_OFF:
+				                powerOn = false;
 								break;
 							case E_MD_CIR:
+								SendCartridgeInfo(mdCartridgeInfo);
 								break;
 							case E_MD_TIR:
+								SendTrackInfo(mdTrackInfo);
 								break;
 							case E_MD_NXT:
+				                track++;
+				                fixTrack(&md);
+				                mdTrackInfo[5] = track;
+				                nextTrack();
 								break;
 							case E_MD_PRV:
+				                track--;
+				                fixTrack(&md);
+				                mdTrackInfo[5] = track;
+				                prevTrack();
 								break;
 							case E_MD_CHG:
+				                changeCD(mdTrackInfo, &md);
 								break;
 							case E_MD_PUP:
+				                byteToSend = 0x00;
+				                SendByteToMelbus();
 								break;
 							case E_MD_PDN:
+				                byteToSend = 0x00;
+				                SendByteToMelbus();
 								break;
 							case E_MD_FFW:
+				                byteToSend = 0x00;
+				                SendByteToMelbus();
 								break;
 							case E_MD_FRW:
+				                byteToSend = 0x00;
+				                SendByteToMelbus();
 								break;
 							case E_MD_SCN:
+				                byteToSend = 0x00;
+				                SendByteToMelbus();
 								break;
 							case E_MD_RND:
+				                byteToSend = 0x00;
+				                SendByteToMelbus();
 								break;
 							case E_MD_NU:
 								break;
 							case E_CDC_CIR:
+								SendCartridgeInfo(cdcCartridgeInfo);
 								break;
 							case E_CDC_TIR:
+								SendTrackInfo(cdcTrackInfo);
 								break;
 							case E_CDC_NXT:
+				                track++;
+				                fixTrack(&cd);
+				                cdcTrackInfo[5] = track;
+				                nextTrack();
 								break;
 							case E_CDC_PRV:
+				                track--;
+				                fixTrack(&cd);
+				                cdcTrackInfo[5] = track;
+				                prevTrack();
 								break;
 							case E_CDC_CHG:
+								changeCD(cdcTrackInfo, &cd);
 								break;
 							case E_CDC_PUP:
+								byteToSend = 0x00;
+								SendByteToMelbus();
+								cdcTrackInfo[1] = startByte;
+								cdcTrackInfo[8] = startByte;
 								break;
 							case E_CDC_PDN:
+				                byteToSend = 0x00;
+				                SendByteToMelbus();
+				                cdcTrackInfo[1] = stopByte;
+				                cdcTrackInfo[8] = stopByte;
 								break;
 							case E_CDC_FFW:
+				                byteToSend = 0x00;
+				                SendByteToMelbus();
 								break;
 							case E_CDC_FRW:
+				                byteToSend = 0x00;
+				                SendByteToMelbus();
 								break;
 							case E_CDC_SCN:
+				                byteToSend = 0x00;
+				                SendByteToMelbus();
 								break;
 							case E_CDC_RND:
+				                byteToSend = 0x00;
+				                SendByteToMelbus();
 								break;
 							case E_CDC_NU:
-								break;
-							default:
 								break;
 							}
 							break;
@@ -377,8 +451,11 @@ int main(void)
 			}
 		}
 		if (ComTicks > timeout) {
-			ConnTicks = 0;
+			ComTicks = 0;
 			melbusInitReq();
+		}
+		if (HWTicks > timeout) {
+			HWTicks = 0;
 		}
 		melbus_Bitposition = 7;
 		for (byte i = 0; i < E_LIST_MAX; i++) {
@@ -462,7 +539,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
 
   /*Configure GPIO pin : PC13 */
   GPIO_InitStruct.Pin = GPIO_PIN_13;
@@ -513,7 +590,8 @@ void SendByteToMelbus(void) {
 	HAL_NVIC_DisableIRQ(EXTI2_IRQn);
 
 	SetPinToOutput(MELBUS_DATA_Pin);
-
+	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
+	SetPinToInput(MELBUS_CLOCK_Pin);
 	for (char i = 7; i >= 0; i--)
 	{
 		while (HAL_GPIO_ReadPin(GPIOA, MELBUS_CLOCK_Pin) == GPIO_PIN_SET) {} //wait for low clock
@@ -522,14 +600,18 @@ void SendByteToMelbus(void) {
 		} else {
 			HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_RESET);
 		}
+		if (i == 0) {
+			break;
+		}
 		while (HAL_GPIO_ReadPin(GPIOA, MELBUS_CLOCK_Pin) == GPIO_PIN_RESET) {}  //wait for high clock
+
 	}
 	//Let the value be read by the HU
 	DWT_Delay_us(20);
 
 	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
 	SetPinToInput(MELBUS_DATA_Pin);
-
+    SetClockToInt();
 	HAL_NVIC_EnableIRQ(EXTI2_IRQn);
 }
 
@@ -588,6 +670,20 @@ void SendText(void) {
 	SetClockToInt();
 }
 
+void SendTrackInfo(byte trackInfo[]) {
+  for (byte i = 0; i < 9; i++) {
+    byteToSend = trackInfo[i];
+    SendByteToMelbus();
+  }
+}
+
+void SendCartridgeInfo(byte cartridgeInfo[]) {
+  for (byte i = 0; i < 6; i++) {
+    byteToSend = cartridgeInfo[i];
+    SendByteToMelbus();
+  }
+}
+
 static void SetClockToInt(void) {
 	HAL_GPIO_Init(MELBUS_CLOCK_GPIO_Port, &GPIO_InitStructIT);
 	HAL_NVIC_EnableIRQ(EXTI2_IRQn);
@@ -626,6 +722,47 @@ void HAL_GPIO_EXTI_Callback(uint16_t pin) {
 			melbus_Bitposition--;
 		}
 	}
+}
+
+void nextTrack() {
+	DWT_Delay_ms(1);
+}
+
+void prevTrack() {
+	DWT_Delay_ms(1);
+}
+
+void fixTrack(byte *disk) {
+  //cut out A-F in each nibble, and skip "00"
+  if (*disk > 4) {
+    *disk = 1;
+  } else if (*disk < 1) {
+    *disk = 4;
+  }
+}
+
+void changeCD(byte trackInfo[], byte *disk) {
+  while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_SET) {
+    if (byteIsRead) {
+      byteIsRead = false;
+      switch (melbus_ReceivedByte) {
+        //0x81 to 0x86 corresponds to cd buttons 1 to 6 on the HU (650)
+        case 0x41:  //next cd
+          *disk++;
+          track = 1;
+          break;
+        case 0x01:  //prev cd
+          *disk--;
+          track = 1;
+          break;
+        default:
+          track = 1;
+          break;
+      }
+    }
+  }
+  trackInfo[3] = *disk;
+  trackInfo[5] = track;
 }
 
 uint32_t DWT_Delay_Init(void)
