@@ -186,6 +186,7 @@ const byte commands[E_LIST_MAX][7] = {
 		[E_MD_NXT] = MD_NXT, // 7
 		[E_MD_PRV] = MD_PRV, // 8
 		[E_MD_CHG] = MD_CHG, // 9
+		[E_MD_PUP] = MD_PUP, // 39
 		[E_MD_PDN] = MD_PDN, // 28
 		[E_MD_FFW] = MD_FFW, // 29
 		[E_MD_FRW] = MD_FRW, // 30
@@ -258,7 +259,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
 		bool busy = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4);
 		byte byteCounter = 1;
-		byte melbus_log[99] = {[0 ... 98] = 0xFF};
+		byte melbus_log[99] = {[0 ... 98] = 0x00};
 		HWTicks++;
 		if (powerOn) {
 			ComTicks++;
