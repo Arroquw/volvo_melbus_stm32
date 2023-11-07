@@ -59,6 +59,36 @@ typedef unsigned char byte;
 #define MD_SCN {3, MD_BASE_ID, 0x19, 0x2E}             //scan mode. ack
 #define MD_RND {3, MD_BASE_ID, 0x19, 0x52}             //random mode. ack
 #define MD_NU {3, MD_BASE_ID, 0x1A, 0x50}              //not used
+/* unknown - reply 6 bytes
+#define MD_UNK {3, MD_BASE_ID, 0x1E, 0xF9}
+ * possibly row request on MD? replies look like:
+ * 0x01 0x01 0x03 0x01 0x00 0x01
+ * 0x02 0x02 0x03 0x01 0x00 0x01
+ * 0x03 0x03 0x03 0x01 0x00 0x01
+ * Similar to reply to MRB_2:
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 2 1 3 2 0 80 99 54 68 65 20 52 6F 63 6B 61 66 65 6C 6C 65 72 20
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 3 1 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 3 2 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 3 3 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 1 1 3 2 0 80 99 50 72 61 69 73 65 20 59 6F 75 0 0 0 0 0 0
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 3 1 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 3 2 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 3 3 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 2 1 3 2 0 80 99 54 68 65 20 52 6F 63 6B 61 66 65 6C 6C 65 72 20
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 3 1 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 3 2 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 3 3 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 1 1 3 2 0 80 99 50 72 61 69 73 65 20 59 6F 75 0 0 0 0 0 0
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 3 1 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 3 2 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+ * 0 1E EC 87 FF DF DF FB D8 FA 0 3 3 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
+#define MD_MRB2_REPLY {11, MD_MASTER_ID, 0xFB, MD_BASE_ID, 0xFA, 0x00, row?, another row?, 0x03, yet another row?, 0x80, track}
+possibly bit errors on sniffer:
+#define MD_UNK_2 {3, MD_ALT_ID, 0x0D, 0xF0}
+#define MD_UNK_3 {3, MD_ALT_ID, 0x19, 0xF0}
+#define CDC_UNK {5, CDC_ALT_ID, 0x1B, 0xE0, 0x00, 0x84}
+#define CDC_UNK_2 {5, CDC_BASE_ID, 0xD8, 0xF0, 0x00, 0x84}
+*/
 
 #define CDC_CIR {3, CDC_BASE_ID, 0x1E, 0xEF}             //Cartridge info request. Respond with 6 bytes
 #define CDC_TIR {5, CDC_ALT_ID, 0x1B, 0xE0, 0x01, 0x08}  //track info req. resp 9 bytes
@@ -115,7 +145,7 @@ void SendText(void);
 void SendTrackInfo(byte trackInfo[]);
 void SendCartridgeInfo(byte trackInfo[]);
 void changeCD(byte trackInfo[], byte *disk);
-void fixTrack(byte *disk);
+void fixTrack();
 void nextTrack();
 void prevTrack();
 /* USER CODE END PFP */
@@ -186,25 +216,25 @@ const byte commands[E_LIST_MAX][7] = {
 		[E_MD_NXT] = MD_NXT, // 7
 		[E_MD_PRV] = MD_PRV, // 8
 		[E_MD_CHG] = MD_CHG, // 9
-		[E_MD_PUP] = MD_PUP, // 39
-		[E_MD_PDN] = MD_PDN, // 28
-		[E_MD_FFW] = MD_FFW, // 29
-		[E_MD_FRW] = MD_FRW, // 30
-		[E_MD_SCN] = MD_SCN, // 31
-		[E_MD_RND] = MD_RND, // 32
-		[E_MD_NU] = MD_NU,   // 33
-		[E_CDC_CIR] = CDC_CIR, // 34
-		[E_CDC_TIR] = CDC_TIR, // 35
-		[E_CDC_NXT] = CDC_NXT, // 36
-		[E_CDC_PRV] = CDC_PRV, // 37
-		[E_CDC_CHG] = CDC_CHG, // 38
-		[E_CDC_PUP] = CDC_PUP, // 39
-		[E_CDC_PDN] = CDC_PDN, // 40
-		[E_CDC_FFW] = CDC_FFW, // 41
-		[E_CDC_FRW] = CDC_FRW, // 42
-		[E_CDC_SCN] = CDC_SCN, // 43
-		[E_CDC_RND] = CDC_RND, // 44
-		[E_CDC_NU] = CDC_NU   // 45
+		[E_MD_PUP] = MD_PUP, // 10
+		[E_MD_PDN] = MD_PDN, // 11
+		[E_MD_FFW] = MD_FFW, // 12
+		[E_MD_FRW] = MD_FRW, // 13
+		[E_MD_SCN] = MD_SCN, // 14
+		[E_MD_RND] = MD_RND, // 15
+		[E_MD_NU] = MD_NU,   // 16
+		[E_CDC_CIR] = CDC_CIR, // 17
+		[E_CDC_TIR] = CDC_TIR, // 18
+		[E_CDC_NXT] = CDC_NXT, // 19
+		[E_CDC_PRV] = CDC_PRV, // 20
+		[E_CDC_CHG] = CDC_CHG, // 21
+		[E_CDC_PUP] = CDC_PUP, // 22
+		[E_CDC_PDN] = CDC_PDN, // 23
+		[E_CDC_FFW] = CDC_FFW, // 24
+		[E_CDC_FRW] = CDC_FRW, // 25
+		[E_CDC_SCN] = CDC_SCN, // 26
+		[E_CDC_RND] = CDC_RND, // 27
+		[E_CDC_NU] = CDC_NU   // 28
 };
 
 
@@ -277,24 +307,12 @@ int main(void)
 				melbus_log[byteCounter - 1] = lastByte;
 				ComTicks = 0; //reset age
 				for (byte cmd = 0; cmd < E_LIST_MAX; cmd++) {
+
 					if (lastByte == commands[cmd][byteCounter]) {
 						matching[cmd]++;
 						if ((matching[cmd] == commands[cmd][0]) && (byteCounter == commands[cmd][0])) {
 							ConnTicks = 0;  //reset age
 							switch (cmd) {
-							case E_MRB_1:
-								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
-									if (byteIsRead) {
-										byteIsRead = false;
-										if (melbus_ReceivedByte == MD_MASTER_ID) {
-											byteToSend = MD_MASTER_ID;
-											SendByteToMelbus();
-											SendText();
-											break;
-										}
-									}
-								}
-								break;
 							case E_MI: /* Intentional fall-through */
 							case E_SI:
 								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
@@ -311,6 +329,7 @@ int main(void)
 									}
 								}
 								break;
+							case E_MRB_1: /* Intentional fall-through */
 							case E_MRB_2:
 								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
 									if (byteIsRead) {
@@ -321,17 +340,8 @@ int main(void)
 											SendText();
 											break;
 										}
-										//if (melbus_ReceivedByte == MASTER_ID) {
-											//  byteToSend = MASTER_ID;
-											//  SendByteToMelbus();
-											//  SendText();
-										//  SendTextI2c();
-										//  break;
-										//}
 									}
 								}
-								//Serial.println("MRB 2");
-
 								break;
 							case E_IGN_OFF:
 				                powerOn = false;
@@ -344,42 +354,24 @@ int main(void)
 								break;
 							case E_MD_NXT:
 				                track++;
-				                fixTrack(&md);
+				                fixTrack();
 				                mdTrackInfo[5] = track;
 				                nextTrack();
 								break;
 							case E_MD_PRV:
 				                track--;
-				                fixTrack(&md);
+				                fixTrack();
 				                mdTrackInfo[5] = track;
 				                prevTrack();
 								break;
 							case E_MD_CHG:
 				                changeCD(mdTrackInfo, &md);
-								break;
-							case E_MD_PUP:
-				                byteToSend = 0x00;
-				                SendByteToMelbus();
-								break;
-							case E_MD_PDN:
-				                byteToSend = 0x00;
-				                SendByteToMelbus();
-								break;
-							case E_MD_FFW:
-				                byteToSend = 0x00;
-				                SendByteToMelbus();
-								break;
-							case E_MD_FRW:
-				                byteToSend = 0x00;
-				                SendByteToMelbus();
-								break;
-							case E_MD_SCN:
-				                byteToSend = 0x00;
-				                SendByteToMelbus();
-								break;
-							case E_MD_RND:
-				                byteToSend = 0x00;
-				                SendByteToMelbus();
+				                if (md > 4) {
+				                	md = 1;
+				                }
+				                if ( md < 1) {
+				                	md = 4;
+				                }
 								break;
 							case E_MD_NU:
 								break;
@@ -391,18 +383,24 @@ int main(void)
 								break;
 							case E_CDC_NXT:
 				                track++;
-				                fixTrack(&cd);
+				                fixTrack();
 				                cdcTrackInfo[5] = track;
 				                nextTrack();
 								break;
 							case E_CDC_PRV:
 				                track--;
-				                fixTrack(&cd);
+				                fixTrack();
 				                cdcTrackInfo[5] = track;
 				                prevTrack();
 								break;
 							case E_CDC_CHG:
 								changeCD(cdcTrackInfo, &cd);
+								if (cd > 10) {
+									cd = 1;
+								}
+								if (cd < 1) {
+									cd = 10;
+								}
 								break;
 							case E_CDC_PUP:
 								byteToSend = 0x00;
@@ -416,18 +414,15 @@ int main(void)
 				                cdcTrackInfo[1] = stopByte;
 				                cdcTrackInfo[8] = stopByte;
 								break;
-							case E_CDC_FFW:
-				                byteToSend = 0x00;
-				                SendByteToMelbus();
-								break;
-							case E_CDC_FRW:
-				                byteToSend = 0x00;
-				                SendByteToMelbus();
-								break;
-							case E_CDC_SCN:
-				                byteToSend = 0x00;
-				                SendByteToMelbus();
-								break;
+							case E_MD_PUP: /* Intentional fall-through */
+							case E_MD_PDN: /* Intentional fall-through */
+							case E_MD_FFW: /* Intentional fall-through */
+							case E_MD_FRW: /* Intentional fall-through */
+							case E_MD_SCN: /* Intentional fall-through */
+							case E_MD_RND: /* Intentional fall-through */
+							case E_CDC_FFW: /* Intentional fall-through */
+							case E_CDC_FRW: /* Intentional fall-through */
+							case E_CDC_SCN: /* Intentional fall-through */
 							case E_CDC_RND:
 				                byteToSend = 0x00;
 				                SendByteToMelbus();
@@ -593,7 +588,7 @@ void SendByteToMelbus(void) {
 	SetPinToOutput(MELBUS_DATA_Pin);
 	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
 	SetPinToInput(MELBUS_CLOCK_Pin);
-	for (char i = 7; i >= 0; i--)
+	for (int i = 7; i >= 0; i--)
 	{
 		while (HAL_GPIO_ReadPin(GPIOA, MELBUS_CLOCK_Pin) == GPIO_PIN_SET) {} //wait for low clock
 		if (byteToSend & (1 << i)) {
@@ -601,11 +596,10 @@ void SendByteToMelbus(void) {
 		} else {
 			HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_RESET);
 		}
-		if (i == 0) {
-			break;
-		}
-		while (HAL_GPIO_ReadPin(GPIOA, MELBUS_CLOCK_Pin) == GPIO_PIN_RESET) {}  //wait for high clock
-
+		//if (i == 0) {
+		//	break;
+		//}
+		while (i && HAL_GPIO_ReadPin(GPIOA, MELBUS_CLOCK_Pin) == GPIO_PIN_RESET) {}  //wait for high clock
 	}
 	//Let the value be read by the HU
 	DWT_Delay_us(20);
@@ -622,7 +616,7 @@ void SendByteToMelbus2(void) {
 	//For each bit in the byte
 	//char, since it will go negative. byte 0..255, char -128..127
 	//int takes more clockcycles to update on a 8-bit CPU.
-	for (char i = 7; i >= 0; i--)
+	for (int i = 7; i >= 0; i--)
 	{
 		DWT_Delay_us(7);
 		HAL_GPIO_WritePin(GPIOA, MELBUS_CLOCK_Pin, GPIO_PIN_RESET);
@@ -650,7 +644,7 @@ void SendText(void) {
 	SetPinToOutput(MELBUS_CLOCK_Pin);
 
 	//send header
-	for (byte b = 0; b < 4; b++) {
+	for (uint32_t b = 0; b < 4; b++) {
 		byteToSend = textHeader[b];
 		SendByteToMelbus2();
 	}
@@ -660,7 +654,7 @@ void SendText(void) {
 	SendByteToMelbus2();
 
 	//send text
-	for (byte b = 0; b < 36; b++) {
+	for (uint32_t b = 0; b < 36; b++) {
 		byteToSend = customText[b];
 		SendByteToMelbus2();
 	}
@@ -672,14 +666,14 @@ void SendText(void) {
 }
 
 void SendTrackInfo(byte trackInfo[]) {
-  for (byte i = 0; i < 9; i++) {
+  for (uint32_t i = 0; i < 9; i++) {
     byteToSend = trackInfo[i];
     SendByteToMelbus();
   }
 }
 
 void SendCartridgeInfo(byte cartridgeInfo[]) {
-  for (byte i = 0; i < 6; i++) {
+  for (uint32_t i = 0; i < 6; i++) {
     byteToSend = cartridgeInfo[i];
     SendByteToMelbus();
   }
@@ -733,13 +727,26 @@ void prevTrack() {
 	DWT_Delay_ms(1);
 }
 
-void fixTrack(byte *disk) {
+void fixTrack() {
   //cut out A-F in each nibble, and skip "00"
-  if (*disk > 4) {
-    *disk = 1;
-  } else if (*disk < 1) {
-    *disk = 4;
-  }
+	  byte hn = track >> 4;
+	  byte ln = track & 0xF;
+	  if (ln == 0xA) {
+	    ln = 0;
+	    hn += 1;
+	  }
+	  if (ln == 0xF) {
+	    ln = 9;
+	  }
+	  if (hn == 0xA) {
+	    hn = 0;
+	    ln = 1;
+	  }
+	  if ((hn == 0) && (ln == 0)) {
+	    ln = 0x9;
+	    hn = 0x9;
+	  }
+	  track = (hn << 4) + ln;
 }
 
 void changeCD(byte trackInfo[], byte *disk) {
@@ -749,11 +756,11 @@ void changeCD(byte trackInfo[], byte *disk) {
       switch (melbus_ReceivedByte) {
         //0x81 to 0x86 corresponds to cd buttons 1 to 6 on the HU (650)
         case 0x41:  //next cd
-          *disk++;
+          *disk = *disk + 1;
           track = 1;
           break;
         case 0x01:  //prev cd
-          *disk--;
+          *disk = *disk - 1;
           track = 1;
           break;
         default:
