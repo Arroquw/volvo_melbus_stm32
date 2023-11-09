@@ -26,7 +26,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-typedef unsigned char byte;
+typedef uint8_t byte;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -62,12 +62,7 @@ typedef unsigned char byte;
 #define MD_RTR {7, MD_BASE_ID, 0x1E, 0xF9, 0x01, 0x01, 0x03, 0x01}			   //request text row
 #define MD_RTR_2 {7, MD_BASE_ID, 0x1E, 0xF9, 0x02, 0x02, 0x03, 0x01}			   //request text row
 #define MD_RTR_3 {7, MD_BASE_ID, 0x1E, 0xF9, 0x03, 0x03, 0x03, 0x01}			   //request text row
-/* unknown - reply 6 bytes
-
- * possibly row request on MD? replies look like:
- * 0x01 0x01 0x03 0x01 0x00 0x01
- * 0x02 0x02 0x03 0x01 0x00 0x01
- * 0x03 0x03 0x03 0x01 0x00 0x01
+/*
  * Similar to reply to MRB_2:
  * 0 1E EC 87 FF DF DF FB D8 FA 0 2 1 3 2 0 80 99 54 68 65 20 52 6F 63 6B 61 66 65 6C 6C 65 72 20
  * 0 1E EC 87 FF DF DF FB D8 FA 0 3 1 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
@@ -163,11 +158,13 @@ volatile byte melbus_ReceivedByte = 0;
 volatile byte melbus_Bitposition = 7;
 volatile bool byteIsRead = false;
 volatile bool reqMasterFlag = false; //set this to request master mode (and sendtext) at a proper time.
+volatile bool textInit = false;
 byte byteToSend = 0;
 byte track = 1;
 byte md = 0;
 byte cd = 1;
-byte textHeader[] = {0xFB, 0xD8, 0xFA, 0x00 };
+byte textHeader[] = {0xFB, 0xD8, 0xFA, 0x00, 0x01, 0x01, 0x03, 0x02, 0x00};
+byte textInitHeader[] = {0xF9, 0xD8, 0xE1, 0x68, 0x00, 0x00, 0x40, 0x00, 0x0C, 0xCC, 0xCC };
 byte textRow = 2;
 byte customText[36] = "visualapproach";
 byte mdTrackInfo[] = {0x00, 0x02, 0x00, 0x00, 0x80, 0x99, 0x0C, 0xCC, 0xCC};
@@ -300,7 +297,7 @@ int main(void)
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
-		bool busy = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4);
+		bool busy = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
 		byte byteCounter = 1;
 		byte melbus_log[99];
 		HWTicks++;
@@ -328,6 +325,11 @@ int main(void)
 							switch (cmd) {
 							case E_MI: /* Intentional fall-through */
 							case E_SI:
+								textInitHeader[3] = 0x68;
+								textInitHeader[6] = 0x40;
+								textInitHeader[7] = 0x0;
+								reqMasterFlag = true;
+								textInit = true;
 								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
 									if(byteIsRead) {
 										byteIsRead = false;
@@ -439,12 +441,19 @@ int main(void)
 								mdTrackInfo[6] = 0;
 								mdTrackInfo[7] = 0;
 								mdTrackInfo[8] = 0;
+								reqMasterFlag = true;
+								textInit = false;
 							case E_MD_PDN: /* Intentional fall-through */
 								if (cmd == E_MD_PDN) {
 									mdTrackInfo[1] = stopByte;
 									mdTrackInfo[6] = 0xC;
 									mdTrackInfo[7] = 0xCC;
 									mdTrackInfo[8] = 0xCC;
+									textInitHeader[3] = 0x02;
+									textInitHeader[6] = 0x80;
+									textInitHeader[7] = 0x99;
+									textInit = true;
+									reqMasterFlag = true;
 								}
 							case E_MD_FFW: /* Intentional fall-through */
 							case E_MD_FRW: /* Intentional fall-through */
@@ -466,7 +475,7 @@ int main(void)
 				}
 				byteCounter++;
 			}
-			busy = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4);
+			busy = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
 		}
 		if (!ComTicks && ConnTicks) {
 			for (byte b = 0; b < byteCounter-1; b++) {
@@ -676,7 +685,8 @@ void SendByteToMelbus2(void) {
 
 void SendText(void) {
 	HAL_NVIC_DisableIRQ(EXTI2_IRQn);
-
+	byte *header = textHeader;
+	uint8_t size = sizeof textHeader;
 	//Convert datapin and clockpin to output
 	//pinMode(MELBUS_DATA, OUTPUT); //To slow, use DDRD instead:
 	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
@@ -684,12 +694,16 @@ void SendText(void) {
 	HAL_GPIO_WritePin(GPIOA, MELBUS_CLOCK_Pin, GPIO_PIN_SET);
 	SetPinToOutput(MELBUS_CLOCK_Pin);
 
-	//send header
-	for (uint32_t b = 0; b < 4; b++) {
-		byteToSend = textHeader[b];
-		SendByteToMelbus2();
+	if (textInit) {
+		textInit = false;
+		header = textInitHeader;
+		size = sizeof textInitHeader;
 	}
 
+	for (uint32_t b = 0; b < size; b++) {
+		byteToSend = header[b];
+		SendByteToMelbus2();
+	}
 	//send which row to show it on
 	byteToSend = textRow;
 	SendByteToMelbus2();
@@ -746,9 +760,9 @@ static void SetPinToOutput(uint16_t pin) {
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t pin) {
-	if (pin == GPIO_PIN_2) {
+	if (pin == MELBUS_CLOCK_Pin) {
 		//Read status of Datapin and set status of current bit in recv_byte
-		if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_SET) {
+		if (HAL_GPIO_ReadPin(GPIOA, MELBUS_DATA_Pin) == GPIO_PIN_SET) {
 			melbus_ReceivedByte |= (1 << melbus_Bitposition); //set bit nr [melbus_Bitposition] to "1"
 		}
 		else {
