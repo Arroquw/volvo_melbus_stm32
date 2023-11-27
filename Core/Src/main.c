@@ -139,6 +139,7 @@ static void SetPinToInput(uint16_t);
 static void SetPinToOutput(uint16_t);
 static void SetClockToInt(void);
 void SendByteToMelbus(void);
+void SendByteToMelbus2(void);
 void SendText(void);
 void SendTrackInfo(byte trackInfo[]);
 void SendCartridgeInfo(byte trackInfo[]);
@@ -147,6 +148,8 @@ void fixTrack();
 void nextTrack();
 void prevTrack();
 void reqMaster();
+void PrepareMaster(void);
+void ResetMasterToSlave(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -164,7 +167,7 @@ byte track = 1;
 byte md = 0;
 byte cd = 1;
 byte textHeader[] = {0xFB, 0xD8, 0xFA, 0x00, 0x01, 0x01, 0x03, 0x02, 0x00};
-byte textInitHeader[] = {0xF9, 0xD8, 0xE1, 0x68, 0x00, 0x00, 0x40, 0x00, 0x0C, 0xCC, 0xCC };
+byte textInitHeader[] = {0xD8, 0xE1, 0x68, 0x00, 0x00, 0x40, 0x00, 0x0C, 0xCC, 0xCC };
 byte textRow = 2;
 byte customText[36] = "visualapproach";
 byte mdTrackInfo[] = {0x00, 0x02, 0x00, 0x00, 0x80, 0x99, 0x0C, 0xCC, 0xCC};
@@ -342,7 +345,18 @@ int main(void)
 										if (melbus_ReceivedByte == MD_BASE_ID) {
 											byteToSend = MD_RESPONSE_ID;
 											SendByteToMelbus();
-											//matching[cmd]--;
+										}
+										if (melbus_ReceivedByte == 0xA9) {
+											byteToSend = 0xAE;
+											//	SendByteToMelbus();
+										}
+										if (melbus_ReceivedByte == 0xB8) {
+											byteToSend = 0xBE;
+											//	SendByteToMelbus();
+										}
+										if (melbus_ReceivedByte == 0xC0) {
+											byteToSend = 0xC6;
+											//	SendByteToMelbus();
 										}
 									}
 								}
@@ -355,7 +369,14 @@ int main(void)
 										if (melbus_ReceivedByte == MD_MASTER_ID) {
 											byteToSend = MD_MASTER_ID;
 											SendByteToMelbus();
+											SetPinToOutput(MELBUS_BUSY_Pin);
+											HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_RESET);
+											DWT_Delay_us(400);
+											byteToSend = 0xF9;
 											SendText();
+											DWT_Delay_us(400);
+											HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_SET);
+											SetPinToInput(MELBUS_BUSY_Pin);
 											break;
 										}
 									}
@@ -400,7 +421,6 @@ int main(void)
 								SendCartridgeInfo(cdcCartridgeInfo);
 								break;
 							case E_CDC_TIR:
-								//D9 1B E0 0 84 0 4 0 0 40 4C 80 0 0
 								SendTrackInfo(cdcTrackInfo);
 								break;
 							case E_CDC_NXT:
@@ -660,64 +680,65 @@ void SendByteToMelbus(void) {
 	melbus_Bitposition = 7;
 }
 
-//This method generates our own clock. Used when in master mode.
-void SendByteToMelbus2(void) {
-	DWT_Delay_us(700);
-	//For each bit in the byte
-	//char, since it will go negative. byte 0..255, char -128..127
-	//int takes more clockcycles to update on a 8-bit CPU.
-	for (int i = 7; i >= 0; i--)
-	{
-		DWT_Delay_us(7);
-		HAL_GPIO_WritePin(GPIOA, MELBUS_CLOCK_Pin, GPIO_PIN_RESET);
-		if (byteToSend & (1 << i)) {
-			HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
-		} else {
-			HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_RESET);
-		}
-		//wait for output to settle
-		DWT_Delay_us(5);
-		HAL_GPIO_WritePin(GPIOA, MELBUS_CLOCK_Pin, GPIO_PIN_SET);
-		//wait for HU to read the bit
-	}
-	DWT_Delay_us(20);
-}
-
-void SendText(void) {
+void PrepareMaster(void) {
 	HAL_NVIC_DisableIRQ(EXTI2_IRQn);
-	byte *header = textHeader;
-	uint8_t size = sizeof textHeader;
-	//Convert datapin and clockpin to output
-	//pinMode(MELBUS_DATA, OUTPUT); //To slow, use DDRD instead:
 	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
 	SetPinToOutput(MELBUS_DATA_Pin);
 	HAL_GPIO_WritePin(GPIOA, MELBUS_CLOCK_Pin, GPIO_PIN_SET);
 	SetPinToOutput(MELBUS_CLOCK_Pin);
 
+}
+
+void ResetMasterToSlave(void) {
+	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
+	SetPinToInput(MELBUS_DATA_Pin);
+	HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+	SetClockToInt();
+	melbus_Bitposition = 7;
+}
+
+//This method generates our own clock. Used when in master mode.
+void SendByteToMelbus2(void) {
+	DWT_Delay_us(547);
+	//HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_RESET);
+	for (int8_t i = 7; i >= 0; i--) {
+		HAL_GPIO_WritePin(GPIOA, MELBUS_CLOCK_Pin, GPIO_PIN_RESET);
+		DWT_Delay_us(8);
+		HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, (byteToSend & (1 << i)));
+		HAL_GPIO_WritePin(GPIOA, MELBUS_CLOCK_Pin, GPIO_PIN_SET);
+		DWT_Delay_us(8);
+	}
+	DWT_Delay_us(20);
+	//HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
+}
+
+void SendText(void) {
+	byte *header = textHeader;
+	uint8_t size = sizeof (textHeader);
+	//Convert datapin and clockpin to output
+	//pinMode(MELBUS_DATA, OUTPUT); //To slow, use DDRD instead:
+	PrepareMaster();
+	SendByteToMelbus2();
 	if (textInit) {
 		textInit = false;
 		header = textInitHeader;
-		size = sizeof textInitHeader;
+		size = sizeof (textInitHeader);
 	}
 
 	for (uint32_t b = 0; b < size; b++) {
 		byteToSend = header[b];
 		SendByteToMelbus2();
 	}
+	//GPIO_InitStructOutput.Mode = GPIO_MODE_OUTPUT_PP;
+	//SetPinToOutput(MELBUS_BUSY_Pin);
+	//HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_SET);
+	//SetPinToInput(MELBUS_BUSY_Pin);
+	//GPIO_InitStructOutput.Mode = GPIO_MODE_OUTPUT_OD;
 	//send which row to show it on
-	byteToSend = textRow;
-	SendByteToMelbus2();
+	//byteToSend = textRow;
+	//SendByteToMelbus2();
 
-	//send text
-	for (uint32_t b = 0; b < 36; b++) {
-		byteToSend = customText[b];
-		SendByteToMelbus2();
-	}
-
-	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
-	SetPinToInput(MELBUS_DATA_Pin);
-
-	SetClockToInt();
+	ResetMasterToSlave();
 }
 
 void SendTrackInfo(byte trackInfo[]) {
@@ -737,9 +758,8 @@ void SendCartridgeInfo(byte cartridgeInfo[]) {
 void reqMaster() {
 	SetPinToOutput(MELBUS_DATA_Pin);
 	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_RESET);
-	DWT_Delay_us(700);
-	DWT_Delay_us(700);
-	DWT_Delay_us(800);
+	DWT_Delay_ms(2);
+	DWT_Delay_us(200);
 	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
 	SetPinToInput(MELBUS_DATA_Pin);
 }
