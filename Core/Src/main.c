@@ -274,6 +274,7 @@ int main(void)
 	static long runOnce = 300000;     //counts down on every received message from HU. Triggers when it is passing 1.
 	static long runPeriodically = 100000; //same as runOnce but resets after each countdown.
 	static byte matching[E_LIST_MAX];     //Keep track of every matching byte in the commands array
+	static byte tircount = 0;
 	/* USER CODE END 1 */
 
 	/* MCU Configuration--------------------------------------------------------*/
@@ -309,6 +310,7 @@ int main(void)
 		/* USER CODE BEGIN 3 */
 		bool busy = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
 		byte byteCounter = 1;
+
 		byte melbus_log[99];
 		HWTicks++;
 		if (powerOn) {
@@ -391,6 +393,11 @@ int main(void)
 								SendCartridgeInfo(mdCartridgeInfo);
 								break;
 							case E_MD_TIR:
+								tircount++;
+								if (tircount > 5) {
+									reqMasterFlag = true;
+									tircount = 0;
+								}
 								SendTrackInfo(mdTrackInfo);
 								break;
 							case E_MD_NXT:
@@ -423,6 +430,11 @@ int main(void)
 								SendCartridgeInfo(cdcCartridgeInfo);
 								break;
 							case E_CDC_TIR:
+								tircount++;
+								if (tircount > 5) {
+									reqMasterFlag = true;
+									tircount = 0;
+								}
 								SendTrackInfo(cdcTrackInfo);
 								break;
 							case E_CDC_NXT:
@@ -583,7 +595,7 @@ void SystemClock_Config(void)
 static void MX_NVIC_Init(void)
 {
 	/* EXTI2_IRQn interrupt configuration */
-	HAL_NVIC_SetPriority(EXTI2_IRQn, 3, 0);
+	HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
 	HAL_NVIC_EnableIRQ(EXTI2_IRQn);
 }
 
@@ -671,12 +683,10 @@ void SendByteToMelbus(void) {
 	}
 	//Let the value be read by the HU
 	DWT_Delay_us(5);
-
 	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
 	SetPinToInput(MELBUS_DATA_Pin);
 	SetClockToInt();
 	HAL_NVIC_EnableIRQ(EXTI2_IRQn);
-	melbus_Bitposition = 7;
 }
 
 void PrepareMaster(void) {
@@ -699,7 +709,6 @@ void ResetMasterToSlave(void) {
 	DWT_Delay_us(400);
 	HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_SET);
 	SetPinToInput(MELBUS_BUSY_Pin);
-	melbus_Bitposition = 7;
 }
 
 //This method generates our own clock. Used when in master mode.
@@ -770,6 +779,7 @@ void SendCartridgeInfo(byte cartridgeInfo[]) {
 }
 
 void reqMaster() {
+	DWT_Delay_ms(10);
 	SetPinToOutput(MELBUS_DATA_Pin);
 	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_RESET);
 	DWT_Delay_ms(2);
@@ -781,6 +791,7 @@ void reqMaster() {
 static void SetClockToInt(void) {
 	HAL_GPIO_Init(MELBUS_CLOCK_GPIO_Port, &GPIO_InitStructIT);
 	HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+	melbus_Bitposition = 7;
 }
 
 static void SetPinToInput(uint16_t pin) {
