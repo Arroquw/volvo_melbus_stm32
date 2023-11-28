@@ -18,89 +18,22 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdbool.h>
-#include <stdio.h>
+#include "master.h"
+#include "pins.h"
+#include "delay.h"
+#include "slave.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-typedef uint8_t byte;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define MD_RESPONSE_ID 0xDE
-#define MD_MASTER_ID 0xDF
-#define MD_BASE_ID 0xD8
-#define MD_ALT_ID 0xD9
 
-#define CDC_RESPONSE_ID 0xEE
-#define CDC_MASTER_ID 0xEF
-#define CDC_BASE_ID 0xE8
-#define CDC_ALT_ID 0xE9
-
-#define MRB_1 {3, 0x00, 0x1C, 0xEC}            //Master Request Broadcast version 1
-#define MRB_2 {3, 0x00, 0x1E, 0xEC}            //Master Request Broadcast version 2 (maybe this is second init seq?)
-#define MI {3, 0x07, 0x1A, 0xEE}               //Main init sequence
-#define SI {3, 0x00, 0x1E, 0xED}               //Secondary init sequence (turn off ignition, then on)
-#define IGN_OFF {3, 0x00, 0x18, 0x12}           //this is the last message before HU goes to
-
-#define MD_CIR {3, MD_BASE_ID, 0x1E, 0xEF}             //Cartridge info request. Respond with 6 bytes
-#define MD_TIR {5, MD_ALT_ID, 0x1B, 0xE0, 0x01, 0x08}  //track info req. resp 9 bytes
-#define MD_NXT {5, MD_BASE_ID, 0x1B, 0x2D, 0x40, 0x01} //next track.
-#define MD_PRV {5, MD_BASE_ID, 0x1B, 0x2D, 0x00, 0x01} //prev track
-#define MD_CHG {3, MD_BASE_ID, 0x1A, 0x50}             //change cd
-#define MD_PUP {3, MD_BASE_ID, 0x19, 0x2F}             //power up. resp ack (0x00).
-#define MD_PDN {3, MD_BASE_ID, 0x19, 0x22}             //power down. ack (0x00)
-#define MD_FFW {3, MD_BASE_ID, 0x19, 0x29}             //FFW. ack
-#define MD_FRW {3, MD_BASE_ID, 0x19, 0x26}             //FRW. ack
-#define MD_SCN {3, MD_BASE_ID, 0x19, 0x2E}             //scan mode. ack
-#define MD_RND {3, MD_BASE_ID, 0x19, 0x52}             //random mode. ack
-#define MD_NU {3, MD_BASE_ID, 0x1A, 0x50}              //not used
-#define MD_RTR {7, MD_BASE_ID, 0x1E, 0xF9, 0x01, 0x01, 0x03, 0x01}			   //request text row
-#define MD_RTR_2 {7, MD_BASE_ID, 0x1E, 0xF9, 0x02, 0x02, 0x03, 0x01}			   //request text row
-#define MD_RTR_3 {7, MD_BASE_ID, 0x1E, 0xF9, 0x03, 0x03, 0x03, 0x01}			   //request text row
-/*
- * Similar to reply to MRB_2:
- * 0 1E EC 87 FF DF DF FB D8 FA 0 2 1 3 2 0 80 99 54 68 65 20 52 6F 63 6B 61 66 65 6C 6C 65 72 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 1 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 2 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 3 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 1 1 3 2 0 80 99 50 72 61 69 73 65 20 59 6F 75 0 0 0 0 0 0
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 1 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 2 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 3 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 2 1 3 2 0 80 99 54 68 65 20 52 6F 63 6B 61 66 65 6C 6C 65 72 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 1 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 2 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 3 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 1 1 3 2 0 80 99 50 72 61 69 73 65 20 59 6F 75 0 0 0 0 0 0
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 1 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 2 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 3 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
-#define MD_MRB2_REPLY {11, MD_MASTER_ID, 0xFB, MD_BASE_ID, 0xFA, 0x00, row?, another row?, 0x03, yet another row?, 0x80, track}
-possibly bit errors on sniffer:
-#define MD_UNK_2 {3, MD_ALT_ID, 0x0D, 0xF0}
-#define MD_UNK_3 {3, MD_ALT_ID, 0x19, 0xF0}
-#define CDC_UNK {5, CDC_ALT_ID, 0x1B, 0xE0, 0x00, 0x84}
-#define CDC_UNK_2 {5, CDC_BASE_ID, 0xD8, 0xF0, 0x00, 0x84}
- */
-
-#define CDC_CIR {3, CDC_BASE_ID, 0x1E, 0xEF}             //Cartridge info request. Respond with 6 bytes
-#define CDC_TIR {5, CDC_ALT_ID, 0x1B, 0xE0, 0x01, 0x08}  //track info req. resp 9 bytes
-#define CDC_NXT {5, CDC_BASE_ID, 0x1B, 0x2D, 0x40, 0x01} //next track.
-#define CDC_PRV {5, CDC_BASE_ID, 0x1B, 0x2D, 0x00, 0x01} //prev track
-#define CDC_CHG {3, CDC_BASE_ID, 0x1A, 0x50}             //change cd
-#define CDC_PUP {3, CDC_BASE_ID, 0x19, 0x2F}             //power up. resp ack (0x00).
-#define CDC_PDN {3, CDC_BASE_ID, 0x19, 0x22}             //power down. ack (0x00)
-#define CDC_FFW {3, CDC_BASE_ID, 0x19, 0x29}             //FFW. ack
-#define CDC_FRW {3, CDC_BASE_ID, 0x19, 0x26}             //FRW. ack
-#define CDC_SCN {3, CDC_BASE_ID, 0x19, 0x2E}             //scan mode. ack
-#define CDC_RND {3, CDC_BASE_ID, 0x19, 0x52}             //random mode. ack
-#define CDC_NU {3, CDC_BASE_ID, 0x1A, 0x50}              //not used
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -119,64 +52,15 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_NVIC_Init(void);
 /* USER CODE BEGIN PFP */
-uint32_t DWT_Delay_Init(void);
-__STATIC_INLINE void DWT_Delay_ms(volatile uint32_t au32_milliseconds)
-{
-	uint32_t au32_initial_ticks = DWT->CYCCNT;
-	uint32_t au32_ticks = (HAL_RCC_GetHCLKFreq() / 1000);
-	au32_milliseconds *= au32_ticks;
-	while ((DWT->CYCCNT - au32_initial_ticks) < au32_milliseconds);
-}
-__STATIC_INLINE void DWT_Delay_us(volatile uint32_t au32_microseconds)
-{
-	uint32_t au32_initial_ticks = DWT->CYCCNT;
-	uint32_t au32_ticks = (HAL_RCC_GetHCLKFreq() / 1000000);
-	au32_microseconds *= au32_ticks;
-	while ((DWT->CYCCNT - au32_initial_ticks) < au32_microseconds-au32_ticks);
-}
 
-static void melbusInitReq(void);
-static void SetPinToInput(uint16_t);
-static void SetPinToOutput(uint16_t);
-static void SetClockToInt(void);
-void SendByteToMelbus(void);
-void SendByteToMelbus2(void);
-void SendText(void);
-void SendTrackInfo(byte trackInfo[]);
-void SendCartridgeInfo(byte trackInfo[]);
-void changeCD(byte trackInfo[], byte *disk);
-void fixTrack();
-void nextTrack();
-void prevTrack();
-void reqMaster();
-void PrepareMaster(void);
-void ResetMasterToSlave(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-GPIO_InitTypeDef GPIO_InitStructInput = { .Mode = GPIO_MODE_INPUT, .Pull = GPIO_NOPULL };
-GPIO_InitTypeDef GPIO_InitStructOutput = { .Mode = GPIO_MODE_OUTPUT_OD };
-GPIO_InitTypeDef GPIO_InitStructIT = { .Pin = MELBUS_CLOCK_Pin, .Mode = GPIO_MODE_IT_RISING, .Pull = GPIO_NOPULL };
+
 volatile byte melbus_ReceivedByte = 0;
 volatile byte melbus_Bitposition = 7;
 volatile bool byteIsRead = false;
-volatile bool reqMasterFlag = false; //set this to request master mode (and sendtext) at a proper time.
-volatile bool textInit = false;
-byte byteToSend = 0;
-byte track = 1;
-byte md = 0;
-byte cd = 1;
-byte textHeader[] = {0xFB, 0xD8, 0xFA, 0x00, 0x01, 0x01, 0x03, 0x02, 0x00};
-byte textInitHeader[] = {0xF9, 0xD8, 0xE1, 0x68, 0x00, 0x00, 0x40, 0x00, 0x0C, 0xCC, 0xCC };
-byte textRow = 2;
-byte customText[36] = "visualapproach";
-byte mdTrackInfo[] = {0x00, 0x02, 0x00, 0x00, 0x80, 0x99, 0x0C, 0xCC, 0xCC};
-byte mdCartridgeInfo[] = {0x80, 0x00, 0x0F, 0x04, 0x00, 0x0F};
-byte cdcTrackInfo[] = {0x00, 0x02, 0x00, 0x01, 0x80, 0x01, 0xC7, 0x0A, 0x02};
-byte cdcCartridgeInfo[] = {0x00, 0xFC, 0xFF, 0x4A, 0xFC, 0xFF};
-byte startByte = 0x08; //on powerup - change cdcTrackInfo[1] & [8] to this
-byte stopByte = 0x02; //same on powerdown
 
 enum {
 	E_MRB_1,  // 0 now we are master and can send stuff (like text) to the display!
@@ -232,21 +116,21 @@ const byte commands[E_LIST_MAX][8] = {
 		[E_MD_SCN] = MD_SCN, // 14
 		[E_MD_RND] = MD_RND, // 15
 		[E_MD_NU] = MD_NU,   // 16
-		[E_MD_RTR] = MD_RTR,
-		[E_MD_RTR_2] = MD_RTR_2,
-		[E_MD_RTR_3] = MD_RTR_3,
-		[E_CDC_CIR] = CDC_CIR, // 17
-		[E_CDC_TIR] = CDC_TIR, // 18
-		[E_CDC_NXT] = CDC_NXT, // 19
-		[E_CDC_PRV] = CDC_PRV, // 20
-		[E_CDC_CHG] = CDC_CHG, // 21
-		[E_CDC_PUP] = CDC_PUP, // 22
-		[E_CDC_PDN] = CDC_PDN, // 23
-		[E_CDC_FFW] = CDC_FFW, // 24
-		[E_CDC_FRW] = CDC_FRW, // 25
-		[E_CDC_SCN] = CDC_SCN, // 26
-		[E_CDC_RND] = CDC_RND, // 27
-		[E_CDC_NU] = CDC_NU   // 28
+		[E_MD_RTR] = MD_RTR, // 17
+		[E_MD_RTR_2] = MD_RTR_2, // 18
+		[E_MD_RTR_3] = MD_RTR_3, // 19
+		[E_CDC_CIR] = CDC_CIR, // 20
+		[E_CDC_TIR] = CDC_TIR, // 21
+		[E_CDC_NXT] = CDC_NXT, // 22
+		[E_CDC_PRV] = CDC_PRV, // 23
+		[E_CDC_CHG] = CDC_CHG, // 24
+		[E_CDC_PUP] = CDC_PUP, // 25
+		[E_CDC_PDN] = CDC_PDN, // 26
+		[E_CDC_FFW] = CDC_FFW, // 27
+		[E_CDC_FRW] = CDC_FRW, // 28
+		[E_CDC_SCN] = CDC_SCN, // 29
+		[E_CDC_RND] = CDC_RND, // 30
+		[E_CDC_NU] = CDC_NU   // 31
 };
 
 int __io_putchar(int ch)
@@ -265,16 +149,30 @@ int __io_putchar(int ch)
 int main(void)
 {
 	/* USER CODE BEGIN 1 */
-	static byte lastByte = 0;
-	static bool powerOn = true;
-	static long HWTicks = 0;      //age since last BUSY switch
-	static long ComTicks = 0;     //age since last received byte
-	static long ConnTicks = 0;    //age since last message to SIRIUS SAT
-	static long timeout = 1000000; //should be around 10-20 seconds
-	static long runOnce = 300000;     //counts down on every received message from HU. Triggers when it is passing 1.
-	static long runPeriodically = 100000; //same as runOnce but resets after each countdown.
-	static byte matching[E_LIST_MAX];     //Keep track of every matching byte in the commands array
-	static byte tircount = 0;
+	byte lastByte = 0;
+	bool powerOn = true;
+	long HWTicks = 0;      //age since last BUSY switch
+	long ComTicks = 0;     //age since last received byte
+	long ConnTicks = 0;    //age since last message to SIRIUS SAT
+	long timeout = 1000000; //should be around 10-20 seconds
+	long runOnce = 300000;     //counts down on every received message from HU. Triggers when it is passing 1.
+	long runPeriodically = 100000; //same as runOnce but resets after each countdown.
+	byte matching[E_LIST_MAX];     //Keep track of every matching byte in the commands array
+	byte tircount = 0;
+	byte track = 1;
+	byte md = 0;
+	byte cd = 1;
+	byte mdTrackInfo[] = {0x00, 0x02, 0x00, 0x00, 0x80, 0x99, 0x0C, 0xCC, 0xCC};
+	byte mdCartridgeInfo[] = {0x80, 0x00, 0x0F, 0x04, 0x00, 0x0F};
+	byte cdcTrackInfo[] = {0x00, 0x02, 0x00, 0x01, 0x80, 0x01, 0xC7, 0x0A, 0x02};
+	byte cdcCartridgeInfo[] = {0x00, 0xFC, 0xFF, 0x4A, 0xFC, 0xFF};
+	bool textInit = false; // First MRB2 is to initialise sending text
+	byte textHeader[] = {0xFB, 0xD8, 0xFA, 0x00, 0x01, 0x01, 0x03, 0x02, 0x00}; // Send this as prefix to text
+	byte textInitHeader[] = {0xF9, 0xD8, 0xE1, 0x68, 0x00, 0x00, 0x40, 0x00, 0x0C, 0xCC, 0xCC }; // Send this as reply to first MRB2
+	//byte textRow = 2; 						TODO: use for sending text
+	//byte customText[36] = "visualapproach";	TODO: send text
+	bool reqMasterFlag = false; //set this to request master mode (and sendtext) at a proper time.
+
 	/* USER CODE END 1 */
 
 	/* MCU Configuration--------------------------------------------------------*/
@@ -310,7 +208,7 @@ int main(void)
 		/* USER CODE BEGIN 3 */
 		bool busy = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
 		byte byteCounter = 1;
-
+		byte command = 0x00;
 		byte melbus_log[99];
 		HWTicks++;
 		if (powerOn) {
@@ -329,7 +227,6 @@ int main(void)
 				melbus_log[byteCounter - 1] = lastByte;
 				ComTicks = 0; //reset age
 				for (byte cmd = 0; cmd < E_LIST_MAX; cmd++) {
-
 					if (lastByte == commands[cmd][byteCounter]) {
 						matching[cmd]++;
 						if ((matching[cmd] == commands[cmd][0]) && (byteCounter == commands[cmd][0])) {
@@ -345,28 +242,27 @@ int main(void)
 								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
 									if(byteIsRead) {
 										byteIsRead = false;
-										//if (melbus_ReceivedByte & 0xF0)
-										//	__ASM volatile ("NOP");
 										if (melbus_ReceivedByte == CDC_BASE_ID) {
-											byteToSend = CDC_RESPONSE_ID;
-											SendByteToMelbus();
+											SendByteToMelbus(CDC_RESPONSE_ID);
 										}
 										if (melbus_ReceivedByte == MD_BASE_ID) {
-											byteToSend = MD_RESPONSE_ID;
-											SendByteToMelbus();
+											SendByteToMelbus(MD_RESPONSE_ID);
 										}
-										if (melbus_ReceivedByte == 0xA9) {
-											byteToSend = 0xAE;
-											//	SendByteToMelbus();
-										}
-										if (melbus_ReceivedByte == 0xB8) {
-											byteToSend = 0xBE;
-											//	SendByteToMelbus();
-										}
-										if (melbus_ReceivedByte == 0xC0) {
-											byteToSend = 0xC6;
-											//	SendByteToMelbus();
-										}
+										/*  Adds TV (A9), DAB (B8). C0 is SAT, but HU803 does not support SAT.
+										 * if (melbus_ReceivedByte == 0xA9) {
+										 *   	byteToSend = 0xAE;
+										 *	    SendByteToMelbus();
+										 * }
+										 * if (melbus_ReceivedByte == 0xB8) {
+										 *	byteToSend = 0xBE;
+										 *	SendByteToMelbus();
+										 * }
+										 * if (melbus_ReceivedByte == 0xC0) {
+										 *	byteToSend = 0xC6;
+										 *	SendByteToMelbus();
+										 * }
+										 *
+										 */
 									}
 								}
 								break;
@@ -377,9 +273,13 @@ int main(void)
 									if (byteIsRead) {
 										byteIsRead = false;
 										if (melbus_ReceivedByte == MD_MASTER_ID) {
-											byteToSend = MD_MASTER_ID;
-											SendByteToMelbus();
-											SendText();
+											SendByteToMelbus(MD_MASTER_ID);
+											if (textInit) {
+												SendText(textInitHeader, sizeof(textInitHeader), true);
+												textInit = false;
+											} else {
+												SendText(textHeader, sizeof(textHeader), false);
+											}
 											break;
 										}
 									}
@@ -401,29 +301,36 @@ int main(void)
 								SendTrackInfo(mdTrackInfo);
 								break;
 							case E_MD_NXT:
-								track++;
-								fixTrack();
+								fixTrack(++track);
 								mdTrackInfo[5] = track;
 								nextTrack();
 								break;
 							case E_MD_PRV:
-								track--;
-								fixTrack();
+								fixTrack(--track);
 								mdTrackInfo[5] = track;
 								prevTrack();
 								break;
 							case E_MD_CHG:
-								changeCD(mdTrackInfo, &md);
+								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
+									if (byteIsRead) {
+										byteIsRead = false;
+										command = melbus_ReceivedByte;
+									}
+								}
+								changeCD(&md, &track, command);
+								if (md > 4) {
+									md = 0;
+								}
+								mdTrackInfo[3] = md;
+								mdTrackInfo[5] = track;
 								break;
 							case E_MD_NU:
 								break;
 							case E_MD_RTR_3:
 							case E_MD_RTR_2:
 							case E_MD_RTR:
-								byteToSend=0x00;
-								SendByteToMelbus();
-								byteToSend=0x01;
-								SendByteToMelbus();
+								SendByteToMelbus(0x00);
+								SendByteToMelbus(0x01);
 								reqMasterFlag = true;
 								break;
 							case E_CDC_CIR:
@@ -438,52 +345,50 @@ int main(void)
 								SendTrackInfo(cdcTrackInfo);
 								break;
 							case E_CDC_NXT:
-								track++;
-								fixTrack();
+								fixTrack(++track);
 								cdcTrackInfo[5] = track;
 								nextTrack();
 								break;
 							case E_CDC_PRV:
-								track--;
-								fixTrack();
+								fixTrack(--track);
 								cdcTrackInfo[5] = track;
 								prevTrack();
 								break;
 							case E_CDC_CHG:
-								changeCD(cdcTrackInfo, &cd);
+								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
+									if (byteIsRead) {
+										byteIsRead = false;
+										command = melbus_ReceivedByte;
+									}
+								}
+								changeCD(&cd, &track, command);
 								if (cd > 10) {
 									cd = 1;
 								}
 								if (cd < 1) {
 									cd = 10;
 								}
+								cdcTrackInfo[3] = cd;
+								cdcTrackInfo[5] = track;
 								break;
 							case E_CDC_PUP:
-								byteToSend = 0x00;
-								SendByteToMelbus();
-								cdcTrackInfo[1] = startByte;
-								cdcTrackInfo[8] = startByte;
+								cdcTrackInfo[1] = cdcTrackInfo[8] = TRACK_STARTBYTE;
 								break;
 							case E_CDC_PDN:
-								byteToSend = 0x00;
-								SendByteToMelbus();
-								cdcTrackInfo[1] = stopByte;
-								cdcTrackInfo[8] = stopByte;
-								break;
+								if (cmd == E_CDC_PDN) {
+									cdcTrackInfo[1] = cdcTrackInfo[8] = TRACK_STOPBYTE;
+								}
 							case E_MD_PUP: /* Intentional fall-through */
-								mdTrackInfo[1] = startByte;
-								mdTrackInfo[6] = 0;
-								mdTrackInfo[7] = 0;
-								mdTrackInfo[8] = 0;
+								mdTrackInfo[1] = TRACK_STARTBYTE;
+								mdTrackInfo[6] = mdTrackInfo[7] = mdTrackInfo[8] = 0;
 								reqMasterFlag = true;
 								textInit = false;
 							case E_MD_PDN: /* Intentional fall-through */
 								if (cmd == E_MD_PDN) {
-									mdTrackInfo[1] = stopByte;
+									mdTrackInfo[1] = TRACK_STOPBYTE;
 									mdTrackInfo[6] = 0xC;
-									mdTrackInfo[7] = 0xCC;
-									mdTrackInfo[8] = 0xCC;
-									textInitHeader[3] = 0x02;
+									mdTrackInfo[7] = mdTrackInfo[8] = 0xCC;
+									textInitHeader[3] = TRACK_STOPBYTE;
 									textInitHeader[6] = 0x80;
 									textInitHeader[7] = 0x99;
 									textInit = true;
@@ -497,8 +402,7 @@ int main(void)
 							case E_CDC_FRW: /* Intentional fall-through */
 							case E_CDC_SCN: /* Intentional fall-through */
 							case E_CDC_RND:
-								byteToSend = 0x00;
-								SendByteToMelbus();
+								SendByteToMelbus(0x00);
 								break;
 							case E_CDC_NU:
 								break;
@@ -535,7 +439,7 @@ int main(void)
 
 		if (runPeriodically == 0) {
 			runPeriodically = 100000;
-			textRow = 2;
+			//textRow = 2;
 			reqMaster();
 		}
 	}
@@ -642,166 +546,8 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-//Notify HU that we want to trigger the first initiate procedure to add a new device
-//(CD-CHGR/SAT etc) by pulling BUSY line low for 1s
-static void melbusInitReq() {
-	HAL_NVIC_DisableIRQ(EXTI2_IRQn);
-
-	// Wait until Busy-line goes high (not busy) before we pull BUSY low to request init
-	while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {}
-	//DWT_Delay_us(20);
-
-	SetPinToOutput(MELBUS_BUSY_Pin);
-	HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_RESET);
-
-	DWT_Delay_ms(1000);
-
-	HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_SET);
-	SetPinToInput(MELBUS_BUSY_Pin);
-
-	HAL_NVIC_EnableIRQ(EXTI2_IRQn);
-}
-
-void SendByteToMelbus(void) {
-	HAL_NVIC_DisableIRQ(EXTI2_IRQn);
-
-	SetPinToOutput(MELBUS_DATA_Pin);
-	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
-	SetPinToInput(MELBUS_CLOCK_Pin);
-	for (int i = 7; i >= 0; i--)
-	{
-		while (HAL_GPIO_ReadPin(GPIOA, MELBUS_CLOCK_Pin) == GPIO_PIN_SET) {} //wait for low clock
-		if (byteToSend & (1 << i)) {
-			HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
-		} else {
-			HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_RESET);
-		}
-		//if (i == 0) {
-		//	break;
-		//}
-		while (HAL_GPIO_ReadPin(GPIOA, MELBUS_CLOCK_Pin) == GPIO_PIN_RESET) {}  //wait for high clock
-	}
-	//Let the value be read by the HU
-	DWT_Delay_us(5);
-	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
-	SetPinToInput(MELBUS_DATA_Pin);
-	SetClockToInt();
-	HAL_NVIC_EnableIRQ(EXTI2_IRQn);
-}
-
-void PrepareMaster(void) {
-	SetPinToOutput(MELBUS_BUSY_Pin);
-	HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_RESET);
-	DWT_Delay_us(400);
-	HAL_NVIC_DisableIRQ(EXTI2_IRQn);
-	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
-	SetPinToOutput(MELBUS_DATA_Pin);
-	HAL_GPIO_WritePin(GPIOA, MELBUS_CLOCK_Pin, GPIO_PIN_SET);
-	SetPinToOutput(MELBUS_CLOCK_Pin);
-
-}
-
-void ResetMasterToSlave(void) {
-	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
-	SetPinToInput(MELBUS_DATA_Pin);
-	HAL_NVIC_EnableIRQ(EXTI2_IRQn);
-	SetClockToInt();
-	DWT_Delay_us(400);
-	HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_SET);
-	SetPinToInput(MELBUS_BUSY_Pin);
-}
-
-//This method generates our own clock. Used when in master mode.
-void SendByteToMelbus2(void) {
-	DWT_Delay_us(527);
-	//HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_RESET);
-	for (int8_t i = 7; i >= 0; i--) {
-		HAL_GPIO_WritePin(GPIOA, MELBUS_CLOCK_Pin, GPIO_PIN_RESET);
-		DWT_Delay_us(8);
-		HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, (byteToSend & (1 << i)));
-		HAL_GPIO_WritePin(GPIOA, MELBUS_CLOCK_Pin, GPIO_PIN_SET);
-		DWT_Delay_us(8);
-	}
-	DWT_Delay_us(20);
-	//HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
-}
-
-void SendText(void) {
-	byte *header = textHeader;
-	uint8_t size = sizeof (textHeader);
-	bool text = true;
-	//Convert datapin and clockpin to output
-	//pinMode(MELBUS_DATA, OUTPUT); //To slow, use DDRD instead:
-
-	PrepareMaster();
-	if (textInit) {
-		textInit = false;
-		header = textInitHeader;
-		size = sizeof (textInitHeader);
-		text = false;
-	}
-
-	for (uint32_t b = 0; b < size; b++) {
-		byteToSend = header[b];
-		SendByteToMelbus2();
-	}
-
-	if (text) {
-
-	} else {
-		goto exit;
-	}
-	//GPIO_InitStructOutput.Mode = GPIO_MODE_OUTPUT_PP;
-	//SetPinToOutput(MELBUS_BUSY_Pin);
-	//HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_SET);
-	//SetPinToInput(MELBUS_BUSY_Pin);
-	//GPIO_InitStructOutput.Mode = GPIO_MODE_OUTPUT_OD;
-	//send which row to show it on
-	//byteToSend = textRow;
-	//SendByteToMelbus2();
-	exit:
-	ResetMasterToSlave();
-
-}
-
-void SendTrackInfo(byte trackInfo[]) {
-	for (uint32_t i = 0; i < 9; i++) {
-		byteToSend = trackInfo[i];
-		SendByteToMelbus();
-	}
-}
-
-void SendCartridgeInfo(byte cartridgeInfo[]) {
-	for (uint32_t i = 0; i < 6; i++) {
-		byteToSend = cartridgeInfo[i];
-		SendByteToMelbus();
-	}
-}
-
-void reqMaster() {
-	DWT_Delay_ms(10);
-	SetPinToOutput(MELBUS_DATA_Pin);
-	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_RESET);
-	DWT_Delay_ms(2);
-	DWT_Delay_us(200);
-	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
-	SetPinToInput(MELBUS_DATA_Pin);
-}
-
-static void SetClockToInt(void) {
-	HAL_GPIO_Init(MELBUS_CLOCK_GPIO_Port, &GPIO_InitStructIT);
-	HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+void resetBitPosition(void) {
 	melbus_Bitposition = 7;
-}
-
-static void SetPinToInput(uint16_t pin) {
-	GPIO_InitStructInput.Pin = pin;
-	HAL_GPIO_Init(GPIOA, &GPIO_InitStructInput);
-}
-
-static void SetPinToOutput(uint16_t pin) {
-	GPIO_InitStructOutput.Pin = pin;
-	HAL_GPIO_Init(GPIOA, &GPIO_InitStructOutput);
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t pin) {
@@ -819,101 +565,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t pin) {
 			//set bool to true to evaluate the bytes in main loop
 			byteIsRead = true;
 
-			//Reset bitcount to first bit in byte
+			//Reset bitcount to first bit in byte. ALSO do this when toggling clock from IT to input/output
 			melbus_Bitposition = 7;
 		}
 		else {
 			//set bitnumber to address of next bit in byte
 			melbus_Bitposition--;
 		}
-	}
-}
-
-void nextTrack() {
-	DWT_Delay_ms(1);
-}
-
-void prevTrack() {
-	DWT_Delay_ms(1);
-}
-
-void fixTrack() {
-	//cut out A-F in each nibble, and skip "00"
-	byte hn = track >> 4;
-	byte ln = track & 0xF;
-	if (ln == 0xA) {
-		ln = 0;
-		hn += 1;
-	}
-	if (ln == 0xF) {
-		ln = 9;
-	}
-	if (hn == 0xA) {
-		hn = 0;
-		ln = 1;
-	}
-	if ((hn == 0) && (ln == 0)) {
-		ln = 0x9;
-		hn = 0x9;
-	}
-	track = (hn << 4) + ln;
-}
-
-void changeCD(byte trackInfo[], byte *disk) {
-	while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
-		if (byteIsRead) {
-			byteIsRead = false;
-			switch (melbus_ReceivedByte) {
-			//0x81 to 0x86 corresponds to cd buttons 1 to 6 on the HU (650)
-			case 0x41:  //next cd
-				*disk = *disk + 1;
-				track = 1;
-				break;
-			case 0x01:  //prev cd
-				*disk = *disk - 1;
-				track = 1;
-				break;
-			default:
-				track = 1;
-				break;
-			}
-		}
-	}
-	if (md > 4) {
-		md = 0;
-	}
-	trackInfo[3] = *disk;
-	trackInfo[5] = track;
-}
-
-uint32_t DWT_Delay_Init(void)
-{
-	/* Disable TRC */
-	CoreDebug->DEMCR &= ~CoreDebug_DEMCR_TRCENA_Msk; // ~0x01000000;
-	/* Enable TRC */
-	CoreDebug->DEMCR |=  CoreDebug_DEMCR_TRCENA_Msk; // 0x01000000;
-
-	/* Disable clock cycle counter */
-	DWT->CTRL &= ~DWT_CTRL_CYCCNTENA_Msk; //~0x00000001;
-	/* Enable  clock cycle counter */
-	DWT->CTRL |=  DWT_CTRL_CYCCNTENA_Msk; //0x00000001;
-
-	/* Reset the clock cycle counter value */
-	DWT->CYCCNT = 0;
-
-	/* 3 NO OPERATION instructions */
-	__ASM volatile ("NOP");
-	__ASM volatile ("NOP");
-	__ASM volatile ("NOP");
-
-	/* Check if clock cycle counter has started */
-	if(DWT->CYCCNT)
-	{
-		return 0; /*clock cycle counter started*/
-	}
-	else
-	{
-		return 1; /*clock cycle counter not started*/
 	}
 }
 
