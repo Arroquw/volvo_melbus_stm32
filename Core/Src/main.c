@@ -21,7 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "stdbool.h"
+#include <stdbool.h>
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -167,7 +168,7 @@ byte track = 1;
 byte md = 0;
 byte cd = 1;
 byte textHeader[] = {0xFB, 0xD8, 0xFA, 0x00, 0x01, 0x01, 0x03, 0x02, 0x00};
-byte textInitHeader[] = {0xD8, 0xE1, 0x68, 0x00, 0x00, 0x40, 0x00, 0x0C, 0xCC, 0xCC };
+byte textInitHeader[] = {0xF9, 0xD8, 0xE1, 0x68, 0x00, 0x00, 0x40, 0x00, 0x0C, 0xCC, 0xCC };
 byte textRow = 2;
 byte customText[36] = "visualapproach";
 byte mdTrackInfo[] = {0x00, 0x02, 0x00, 0x00, 0x80, 0x99, 0x0C, 0xCC, 0xCC};
@@ -248,6 +249,12 @@ const byte commands[E_LIST_MAX][8] = {
 		[E_CDC_NU] = CDC_NU   // 28
 };
 
+int __io_putchar(int ch)
+{
+	// Write character to ITM ch.0
+	ITM_SendChar(ch);
+	return(ch);
+}
 
 /* USER CODE END 0 */
 
@@ -311,7 +318,7 @@ int main(void)
 			ComTicks = 1;
 			ConnTicks = 1;
 		}
-
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, busy);
 		while (!busy) {
 			HWTicks = 0;
 			if (byteIsRead) {
@@ -363,23 +370,18 @@ int main(void)
 								break;
 							case E_MRB_1: /* Intentional fall-through */
 							case E_MRB_2:
-								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
+								bool state = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
+								while (state == GPIO_PIN_RESET) {
 									if (byteIsRead) {
 										byteIsRead = false;
 										if (melbus_ReceivedByte == MD_MASTER_ID) {
 											byteToSend = MD_MASTER_ID;
 											SendByteToMelbus();
-											SetPinToOutput(MELBUS_BUSY_Pin);
-											HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_RESET);
-											DWT_Delay_us(400);
-											byteToSend = 0xF9;
 											SendText();
-											DWT_Delay_us(400);
-											HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_SET);
-											SetPinToInput(MELBUS_BUSY_Pin);
 											break;
 										}
 									}
+									state = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
 								}
 								break;
 							case E_IGN_OFF:
@@ -497,13 +499,11 @@ int main(void)
 			}
 			busy = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
 		}
-		if (!ComTicks && ConnTicks) {
-			for (byte b = 0; b < byteCounter-1; b++) {
-				int x = melbus_log[b];
-				if (x == 0xFF) {
-					HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-				}
+		if (ComTicks == 0 && ConnTicks != 0) {    //print unmatched messages (unknown)
+			for (byte b = 0; b < byteCounter - 1; b++) {
+				printf("%02X  ", melbus_log[b]);
 			}
+			printf("\r\n");
 		}
 		if (ComTicks > timeout) {
 			ComTicks = 0;
@@ -527,7 +527,6 @@ int main(void)
 			reqMaster();
 		}
 	}
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 }
 /* USER CODE END 3 */
 
@@ -681,6 +680,9 @@ void SendByteToMelbus(void) {
 }
 
 void PrepareMaster(void) {
+	SetPinToOutput(MELBUS_BUSY_Pin);
+	HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_RESET);
+	DWT_Delay_us(400);
 	HAL_NVIC_DisableIRQ(EXTI2_IRQn);
 	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
 	SetPinToOutput(MELBUS_DATA_Pin);
@@ -694,12 +696,15 @@ void ResetMasterToSlave(void) {
 	SetPinToInput(MELBUS_DATA_Pin);
 	HAL_NVIC_EnableIRQ(EXTI2_IRQn);
 	SetClockToInt();
+	DWT_Delay_us(400);
+	HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_SET);
+	SetPinToInput(MELBUS_BUSY_Pin);
 	melbus_Bitposition = 7;
 }
 
 //This method generates our own clock. Used when in master mode.
 void SendByteToMelbus2(void) {
-	DWT_Delay_us(547);
+	DWT_Delay_us(527);
 	//HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_RESET);
 	for (int8_t i = 7; i >= 0; i--) {
 		HAL_GPIO_WritePin(GPIOA, MELBUS_CLOCK_Pin, GPIO_PIN_RESET);
@@ -715,19 +720,27 @@ void SendByteToMelbus2(void) {
 void SendText(void) {
 	byte *header = textHeader;
 	uint8_t size = sizeof (textHeader);
+	bool text = true;
 	//Convert datapin and clockpin to output
 	//pinMode(MELBUS_DATA, OUTPUT); //To slow, use DDRD instead:
+
 	PrepareMaster();
-	SendByteToMelbus2();
 	if (textInit) {
 		textInit = false;
 		header = textInitHeader;
 		size = sizeof (textInitHeader);
+		text = false;
 	}
 
 	for (uint32_t b = 0; b < size; b++) {
 		byteToSend = header[b];
 		SendByteToMelbus2();
+	}
+
+	if (text) {
+
+	} else {
+		goto exit;
 	}
 	//GPIO_InitStructOutput.Mode = GPIO_MODE_OUTPUT_PP;
 	//SetPinToOutput(MELBUS_BUSY_Pin);
@@ -737,8 +750,9 @@ void SendText(void) {
 	//send which row to show it on
 	//byteToSend = textRow;
 	//SendByteToMelbus2();
-
+	exit:
 	ResetMasterToSlave();
+
 }
 
 void SendTrackInfo(byte trackInfo[]) {
