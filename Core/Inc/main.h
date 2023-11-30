@@ -83,7 +83,7 @@ void resetBitPosition(void);
 #define MRB_2 {3, 0x00, 0x1E, 0xEC}            //Master Request Broadcast version 2 (maybe this is second init seq?)
 #define MI {3, 0x07, 0x1A, 0xEE}               //Main init sequence
 #define SI {3, 0x00, 0x1E, 0xED}               //Secondary init sequence (turn off ignition, then on)
-#define IGN_OFF {3, 0x00, 0x18, 0x12}          //this is the last message before HU goes to sleep
+#define IGN_OFF {3, 0x00, 0x18, 0x12}          //thi`s is the last message before HU goes to sleep
 
 #define MD_CIR {3, MD_BASE_ID, 0x1E, 0xEF}             //Cartridge info request. Respond with 6 bytes
 #define MD_TIR {5, MD_ALT_ID, 0x1B, 0xE0, 0x01, 0x08}  //track info req. resp 9 bytes
@@ -97,9 +97,14 @@ void resetBitPosition(void);
 #define MD_SCN {3, MD_BASE_ID, 0x19, 0x2E}             //scan mode. ack
 #define MD_RND {3, MD_BASE_ID, 0x19, 0x52}             //random mode. ack
 #define MD_NU {3, MD_BASE_ID, 0x1A, 0x50}              //not used
-#define MD_RTR {7, MD_BASE_ID, 0x1E, 0xF9, 0x01, 0x01, 0x03, 0x01}			       //request text row respond with 2 bytes
-#define MD_RTR_2 {7, MD_BASE_ID, 0x1E, 0xF9, 0x02, 0x02, 0x03, 0x01}			   //request text row
-#define MD_RTR_3 {7, MD_BASE_ID, 0x1E, 0xF9, 0x03, 0x03, 0x03, 0x01}			   //request text row
+
+#define MD_TEXT_ROW_1 0x01, 0x01, 0x03
+#define MD_TEXT_ROW_2 0x02, 0x02, 0x03
+#define MD_TEXT_ROW_3 0x03, 0x03, 0x03
+
+#define MD_RTR {7, MD_BASE_ID, 0x1E, 0xF9, MD_TEXT_ROW_1, 0x01}			       //request text row respond with 2 bytes
+#define MD_RTR_2 {7, MD_BASE_ID, 0x1E, 0xF9, MD_TEXT_ROW_2, 0x01}			   //request text row
+#define MD_RTR_3 {7, MD_BASE_ID, 0x1E, 0xF9, MD_TEXT_ROW_3, 0x01}			   //request text row
 
 #define CDC_CIR {3, CDC_BASE_ID, 0x1E, 0xEF}             //Cartridge info request. Respond with 6 bytes
 #define CDC_TIR {5, CDC_ALT_ID, 0x1B, 0xE0, 0x01, 0x08}  //track info req. resp 9 bytes
@@ -119,30 +124,6 @@ void resetBitPosition(void);
 //same on powerdown
 #define TRACK_STOPBYTE 0x02
 
-/* MRB2 from IMIV:
- * 0 1E EC 87 FF DF DF FB D8 FA 0 2 1 3 2 0 80 99 54 68 65 20 52 6F 63 6B 61 66 65 6C 6C 65 72 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 1 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 2 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 3 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 1 1 3 2 0 80 99 50 72 61 69 73 65 20 59 6F 75 0 0 0 0 0 0
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 1 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 2 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 3 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 2 1 3 2 0 80 99 54 68 65 20 52 6F 63 6B 61 66 65 6C 6C 65 72 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 1 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 2 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 3 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 1 1 3 2 0 80 99 50 72 61 69 73 65 20 59 6F 75 0 0 0 0 0 0
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 1 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 2 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
- * 0 1E EC 87 FF DF DF FB D8 FA 0 3 3 3 1 0 80 0 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20
-#define MD_MRB2_REPLY {10, 0xFB, MD_BASE_ID, 0xFA, 0x00, row?, another row?, 0x03, yet another row?, 0x00, 0x80, track?}
-possibly bit errors on sniffer:
-#define MD_UNK_2 {3, MD_ALT_ID, 0x0D, 0xF0}
-#define MD_UNK_3 {3, MD_ALT_ID, 0x19, 0xF0}
-#define CDC_UNK {5, CDC_ALT_ID, 0x1B, 0xE0, 0x00, 0x84}
-#define CDC_UNK_2 {5, CDC_BASE_ID, 0xD8, 0xF0, 0x00, 0x84}
- */
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

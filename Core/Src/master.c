@@ -41,6 +41,7 @@ static void SendByteToMelbus2(byte byteToSend) {
 	/*
 	 * Send data on rising edge of clock, frequency seems to be ~60 KHz
 	 * Logic analyser shows 8us of edge time on the clock line, on both bytes sent by HU and internal CD
+	 * Internal CD just leaves less time between bytes sent
 	 */
 	for (int8_t i = 7; i >= 0; i--) {
 		HAL_GPIO_WritePin(GPIOA, MELBUS_CLOCK_Pin, GPIO_PIN_RESET);
@@ -52,20 +53,17 @@ static void SendByteToMelbus2(byte byteToSend) {
 	DELAY(20, us);
 }
 
-void SendText(byte header[], size_t size, bool init) {
+void SendText(union text_cmd cmd, bool init) {
 	PrepareMaster();
-
-	for (uint32_t b = 0; b < size; b++) {
-		SendByteToMelbus2(header[b]);
-	}
-
+	uint8_t size = TEXTCMD_SIZE;
 	if (init) {
-		goto exit;
+		size = TEXTINIT_SIZE;
 	}
 
-	// TODO: send text
+	for (uint8_t b = 0; b < size; b++) {
+		SendByteToMelbus2(cmd.raw[b]);
+	}
 
-	exit:
 	ResetMasterToSlave();
 }
 

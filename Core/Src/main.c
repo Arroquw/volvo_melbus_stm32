@@ -24,6 +24,7 @@
 #include "pins.h"
 #include "delay.h"
 #include "slave.h"
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -167,11 +168,13 @@ int main(void)
 	byte cdcTrackInfo[] = {0x00, 0x02, 0x00, 0x01, 0x80, 0x01, 0xC7, 0x0A, 0x02};
 	byte cdcCartridgeInfo[] = {0x00, 0xFC, 0xFF, 0x4A, 0xFC, 0xFF};
 	bool textInit = false; // First MRB2 is to initialise sending text
-	byte textHeader[] = {0xFB, 0xD8, 0xFA, 0x00, 0x01, 0x01, 0x03, 0x02, 0x00}; // Send this as prefix to text
+	byte textHeader[] = {0xFB, 0xD8, 0xFA, 0x00}; // Send this as prefix to text
 	byte textInitHeader[] = {0xF9, 0xD8, 0xE1, 0x68, 0x00, 0x00, 0x40, 0x00, 0x0C, 0xCC, 0xCC }; // Send this as reply to first MRB2
 	//byte textRow = 2; 						TODO: use for sending text
 	//byte customText[36] = "visualapproach";	TODO: send text
 	bool reqMasterFlag = false; //set this to request master mode (and sendtext) at a proper time.
+	union text_cmd text = { .raw = {0}};
+	byte text_requests = 0;
 
 	/* USER CODE END 1 */
 
@@ -237,6 +240,7 @@ int main(void)
 								textInitHeader[3] = 0x68;
 								textInitHeader[6] = 0x40;
 								textInitHeader[7] = 0x0;
+								memcpy(text.raw, textInitHeader, sizeof(textInitHeader));
 								reqMasterFlag = true;
 								textInit = true;
 								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
@@ -247,6 +251,9 @@ int main(void)
 										}
 										if (melbus_ReceivedByte == MD_BASE_ID) {
 											SendByteToMelbus(MD_RESPONSE_ID);
+										}
+										if (melbus_ReceivedByte == 0xF0) {
+											SendByteToMelbus(0xF5);
 										}
 										/*  Adds TV (A9), DAB (B8). C0 is SAT, but HU803 does not support SAT.
 										 * if (melbus_ReceivedByte == 0xA9) {
@@ -275,15 +282,28 @@ int main(void)
 										if (melbus_ReceivedByte == MD_MASTER_ID) {
 											SendByteToMelbus(MD_MASTER_ID);
 											if (textInit) {
-												SendText(textInitHeader, sizeof(textInitHeader), true);
+												SendText(text, true);
 												textInit = false;
+												memcpy(text.raw, textHeader, sizeof(textHeader));
+												memcpy(text.text_cmd_st.footer, (uint8_t[]){0x00, 0x80}, 2);
+												text.text_cmd_st.track = track;
 											} else {
-												SendText(textHeader, sizeof(textHeader), false);
+												if (text_requests == 0) {
+													memcpy(text.text_cmd_st.payload, "zestienkarakters", sizeof(text.text_cmd_st.payload));
+												} else {
+													memcpy(text.text_cmd.st.payload, "                ", sizeof(text.text_cmd_st.payload));
+												}
+												text.text_cmd_st.track = track;
+												SendText(text, false);
 											}
 											break;
 										}
 									}
 									state = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
+								}
+								if (text_requests < 3) {
+									text_requests++;
+									reqMasterFlag = true;
 								}
 								break;
 							case E_IGN_OFF:
@@ -327,8 +347,22 @@ int main(void)
 							case E_MD_NU:
 								break;
 							case E_MD_RTR_3:
+								text_requests = 0;
+								memcpy(&text.raw[4], (uint8_t[]){MD_TEXT_ROW_3}, 4);
+								SendByteToMelbus(0x00);
+								SendByteToMelbus(0x01);
+								reqMasterFlag = true;
+								break;
 							case E_MD_RTR_2:
+								text_requests = 0;
+								memcpy(&text.raw[4], (uint8_t[]){MD_TEXT_ROW_2}, 4);
+								SendByteToMelbus(0x00);
+								SendByteToMelbus(0x01);
+								reqMasterFlag = true;
+								break;
 							case E_MD_RTR:
+								text_requests = 0;
+								memcpy(&text.raw[4], (uint8_t[]){MD_TEXT_ROW_1}, 4);
 								SendByteToMelbus(0x00);
 								SendByteToMelbus(0x01);
 								reqMasterFlag = true;
@@ -381,8 +415,11 @@ int main(void)
 							case E_MD_PUP: /* Intentional fall-through */
 								mdTrackInfo[1] = TRACK_STARTBYTE;
 								mdTrackInfo[6] = mdTrackInfo[7] = mdTrackInfo[8] = 0;
+								textInitHeader[3] = 0x68;
+								textInitHeader[6] = 0x40;
+								textInitHeader[7] = 0x0;
 								reqMasterFlag = true;
-								textInit = false;
+								textInit = true;
 							case E_MD_PDN: /* Intentional fall-through */
 								if (cmd == E_MD_PDN) {
 									mdTrackInfo[1] = TRACK_STOPBYTE;
