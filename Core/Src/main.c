@@ -291,7 +291,7 @@ int main(void)
 												if (text_requests == 0) {
 													memcpy(text.text_cmd_st.payload, "zestienkarakters", sizeof(text.text_cmd_st.payload));
 												} else {
-													memcpy(text.text_cmd.st.payload, "                ", sizeof(text.text_cmd_st.payload));
+													memcpy(text.text_cmd_st.payload, "                ", sizeof(text.text_cmd_st.payload));
 												}
 												text.text_cmd_st.track = track;
 												SendText(text, false);
@@ -301,10 +301,10 @@ int main(void)
 									}
 									state = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
 								}
-								if (text_requests < 3) {
-									text_requests++;
-									reqMasterFlag = true;
-								}
+								//if (text_requests < 3) {
+								//	text_requests++;
+								//	reqMasterFlag = true;
+								//}
 								break;
 							case E_IGN_OFF:
 								powerOn = false;
@@ -347,21 +347,21 @@ int main(void)
 							case E_MD_NU:
 								break;
 							case E_MD_RTR_3:
-								text_requests = 0;
+								//text_requests = 0;
 								memcpy(&text.raw[4], (uint8_t[]){MD_TEXT_ROW_3}, 4);
 								SendByteToMelbus(0x00);
 								SendByteToMelbus(0x01);
 								reqMasterFlag = true;
 								break;
 							case E_MD_RTR_2:
-								text_requests = 0;
+								//text_requests = 0;
 								memcpy(&text.raw[4], (uint8_t[]){MD_TEXT_ROW_2}, 4);
 								SendByteToMelbus(0x00);
 								SendByteToMelbus(0x01);
 								reqMasterFlag = true;
 								break;
 							case E_MD_RTR:
-								text_requests = 0;
+								//text_requests = 0;
 								memcpy(&text.raw[4], (uint8_t[]){MD_TEXT_ROW_1}, 4);
 								SendByteToMelbus(0x00);
 								SendByteToMelbus(0x01);
