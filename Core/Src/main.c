@@ -175,7 +175,7 @@ int main(void)
 	bool reqMasterFlag = false; //set this to request master mode (and sendtext) at a proper time.
 	union text_cmd text = { .raw = {0}};
 	byte text_requests = 0;
-
+	byte received = 0x0;
 	/* USER CODE END 1 */
 
 	/* MCU Configuration--------------------------------------------------------*/
@@ -246,30 +246,50 @@ int main(void)
 								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
 									if(byteIsRead) {
 										byteIsRead = false;
-										if (melbus_ReceivedByte == CDC_BASE_ID) {
-											SendByteToMelbus(CDC_RESPONSE_ID);
+										received = melbus_ReceivedByte;
+//										if (melbus_ReceivedByte == CDC_BASE_ID) {
+//											SendByteToMelbus(CDC_RESPONSE_ID);
+//										}
+//										if (melbus_ReceivedByte == MD_BASE_ID) {
+//											SendByteToMelbus(MD_RESPONSE_ID);
+//										}
+//										if (melbus_ReceivedByte == 0xF0) {
+//											SendByteToMelbus(0xF6);
+//										}
+										//  Adds TV (A9), DAB (B8). C0 is SAT, but HU803 does not support SAT.
+//										if (melbus_ReceivedByte == 0xA9) {
+//										    SendByteToMelbus(0xAE);
+//										}
+//										if (melbus_ReceivedByte == 0xB8) {
+//											SendByteToMelbus(0xBE);
+//										}
+//										if (melbus_ReceivedByte == 0xC0) {
+//											SendByteToMelbus(0xC6);
+//										}
+										// just some tests...
+//										if(melbus_ReceivedByte == 0x60) {
+//											SendByteToMelbus(0x66);
+//										}
+//										if(melbus_ReceivedByte == 0x90) {
+//											SendByteToMelbus(0x96);
+//										}
+//										if(melbus_ReceivedByte == 0x70) {
+//											SendByteToMelbus(0x76);
+//										}
+//										if(melbus_ReceivedByte == 0xC8) {
+//											SendByteToMelbus(0xCE);
+//										}
+//										if(melbus_ReceivedByte == 0xD0) {
+//											SendByteToMelbus(0xD6);
+//										}
+//										if(melbus_ReceivedByte == 0xA0) {
+//											SendByteToMelbus(0xA6);
+//										}
+
+										if (received > 0xD0 && received < 0xFF && (((received & 0xF) == 0x3) || ((received & 0xE) == 0x08))) {
+											SendByteToMelbus(received | 0x06);
+											received = 0x00;
 										}
-										if (melbus_ReceivedByte == MD_BASE_ID) {
-											SendByteToMelbus(MD_RESPONSE_ID);
-										}
-										if (melbus_ReceivedByte == 0xF0) {
-											SendByteToMelbus(0xF5);
-										}
-										/*  Adds TV (A9), DAB (B8). C0 is SAT, but HU803 does not support SAT.
-										 * if (melbus_ReceivedByte == 0xA9) {
-										 *   	byteToSend = 0xAE;
-										 *	    SendByteToMelbus();
-										 * }
-										 * if (melbus_ReceivedByte == 0xB8) {
-										 *	byteToSend = 0xBE;
-										 *	SendByteToMelbus();
-										 * }
-										 * if (melbus_ReceivedByte == 0xC0) {
-										 *	byteToSend = 0xC6;
-										 *	SendByteToMelbus();
-										 * }
-										 *
-										 */
 									}
 								}
 								break;
@@ -584,7 +604,7 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 void resetBitPosition(void) {
-	melbus_Bitposition = 7;
+	melbus_Bitposition = 8;
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t pin) {
