@@ -3,9 +3,10 @@ Debug/
 *.elf
 *.o
 *.ld
-*.mxproject
+.mxproject
 .settings/
 .metadata/
 RemoteSystemsTempFiles/
 *.launch
-*.cproject
+.cproject
+.project
