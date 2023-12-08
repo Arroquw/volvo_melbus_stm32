@@ -52,6 +52,7 @@
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_NVIC_Init(void);
+void fixText(char text[17], const char *input);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -64,39 +65,39 @@ volatile byte melbus_Bitposition = 7;
 volatile bool byteIsRead = false;
 
 enum {
-	E_MRB_1,  // 0 now we are master and can send stuff (like text) to the display!
-	E_MI,     // 1 main init
-	E_SI,     // 2 sec init (00 1E ED respond 0xC5 !!)
-	E_MRB_2,  // 5 alternative master req bc
-	E_IGN_OFF, // 21
-	E_MD_CIR, // 22
-	E_MD_TIR, // 23
-	E_MD_NXT, // 24
-	E_MD_PRV, // 25
-	E_MD_CHG, // 26
-	E_MD_PUP, // 27
-	E_MD_PDN, // 28
-	E_MD_FFW, // 29
-	E_MD_FRW, // 30
-	E_MD_SCN, // 31
-	E_MD_RND, // 32
-	E_MD_NU,   // 33
-	E_MD_RTR,
-	E_MD_RTR_2,
-	E_MD_RTR_3,
-	E_CDC_CIR, // 34
-	E_CDC_TIR, // 35
-	E_CDC_NXT, // 36
-	E_CDC_PRV, // 37
-	E_CDC_CHG, // 38
-	E_CDC_PUP, // 39
-	E_CDC_PDN, // 40
-	E_CDC_FFW, // 41
-	E_CDC_FRW, // 42
-	E_CDC_SCN, // 43
-	E_CDC_RND, // 44
-	E_CDC_NU,  // 45
-	E_LIST_MAX
+	E_MRB_1,  // 0
+	E_MI,     // 1
+	E_SI,     // 2
+	E_MRB_2,  // 3
+	E_IGN_OFF, // 4
+	E_MD_CIR, // 5
+	E_MD_TIR, // 6
+	E_MD_NXT, // 7
+	E_MD_PRV, // 8
+	E_MD_CHG, // 9
+	E_MD_PUP, // 10
+	E_MD_PDN, // 11
+	E_MD_FFW, // 12
+	E_MD_FRW, // 13
+	E_MD_SCN, // 14
+	E_MD_RND, // 15
+	E_MD_NU,  // 16
+	E_MD_RTR, // 17
+	E_MD_RTR_2, // 18
+	E_MD_RTR_3, // 19
+	E_CDC_CIR, // 20
+	E_CDC_TIR, // 21
+	E_CDC_NXT, // 22
+	E_CDC_PRV, // 23
+	E_CDC_CHG, // 24
+	E_CDC_PUP, // 25
+	E_CDC_PDN, // 26
+	E_CDC_FFW, // 27
+	E_CDC_FRW, // 28
+	E_CDC_SCN, // 29
+	E_CDC_RND, // 30
+	E_CDC_NU,  // 31
+	E_LIST_MAX // handy entry which signifies the size of the command array
 };
 //This list can be quite long. We have approx 700 us between the received bytes.
 const byte commands[E_LIST_MAX][8] = {
@@ -174,7 +175,7 @@ int main(void)
 	//byte customText[36] = "visualapproach";	TODO: send text
 	bool reqMasterFlag = false; //set this to request master mode (and sendtext) at a proper time.
 	union text_cmd text = { .raw = {0}};
-	byte text_requests = 0;
+	char text_array[17];
 	byte received = 0x0;
 	/* USER CODE END 1 */
 
@@ -211,7 +212,6 @@ int main(void)
 		/* USER CODE BEGIN 3 */
 		bool busy = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
 		byte byteCounter = 1;
-		byte command = 0x00;
 		byte melbus_log[99];
 		HWTicks++;
 		if (powerOn) {
@@ -229,6 +229,7 @@ int main(void)
 				lastByte = melbus_ReceivedByte;
 				melbus_log[byteCounter - 1] = lastByte;
 				ComTicks = 0; //reset age
+				/* There is no way I'm touching this state/matching machine */
 				for (byte cmd = 0; cmd < E_LIST_MAX; cmd++) {
 					if (lastByte == commands[cmd][byteCounter]) {
 						matching[cmd]++;
@@ -237,6 +238,7 @@ int main(void)
 							switch (cmd) {
 							case E_MI: /* Intentional fall-through */
 							case E_SI:
+								// Init header on startup, only send it right after power up
 								textInitHeader[3] = 0x68;
 								textInitHeader[6] = 0x40;
 								textInitHeader[7] = 0x0;
@@ -247,45 +249,13 @@ int main(void)
 									if(byteIsRead) {
 										byteIsRead = false;
 										received = melbus_ReceivedByte;
-//										if (melbus_ReceivedByte == CDC_BASE_ID) {
-//											SendByteToMelbus(CDC_RESPONSE_ID);
-//										}
-//										if (melbus_ReceivedByte == MD_BASE_ID) {
-//											SendByteToMelbus(MD_RESPONSE_ID);
-//										}
-//										if (melbus_ReceivedByte == 0xF0) {
-//											SendByteToMelbus(0xF6);
-//										}
-										//  Adds TV (A9), DAB (B8). C0 is SAT, but HU803 does not support SAT.
-//										if (melbus_ReceivedByte == 0xA9) {
-//										    SendByteToMelbus(0xAE);
-//										}
-//										if (melbus_ReceivedByte == 0xB8) {
-//											SendByteToMelbus(0xBE);
-//										}
-//										if (melbus_ReceivedByte == 0xC0) {
-//											SendByteToMelbus(0xC6);
-//										}
-										// just some tests...
-//										if(melbus_ReceivedByte == 0x60) {
-//											SendByteToMelbus(0x66);
-//										}
-//										if(melbus_ReceivedByte == 0x90) {
-//											SendByteToMelbus(0x96);
-//										}
-//										if(melbus_ReceivedByte == 0x70) {
-//											SendByteToMelbus(0x76);
-//										}
-//										if(melbus_ReceivedByte == 0xC8) {
-//											SendByteToMelbus(0xCE);
-//										}
-//										if(melbus_ReceivedByte == 0xD0) {
-//											SendByteToMelbus(0xD6);
-//										}
-//										if(melbus_ReceivedByte == 0xA0) {
-//											SendByteToMelbus(0xA6);
-//										}
-
+										/*
+										 * Response ID of every base ID is base ID | 0x06.
+										 * Just send MD and CDC ranges, because TV,DAB give quite a lot of noise on the MELBUS.
+										 * It doesn't really impact anything but it makes the bus have a lot more traffic, which may be undesirable.
+										 * It also goes completely haywire if you respond as every possible device.
+										 * Guess some IDs are reserved?
+										 */
 										if (received > 0xD0 && received < 0xFF && (((received & 0xF) == 0x3) || ((received & 0xE) == 0x08))) {
 											SendByteToMelbus(received | 0x06);
 											received = 0x00;
@@ -301,30 +271,19 @@ int main(void)
 										byteIsRead = false;
 										if (melbus_ReceivedByte == MD_MASTER_ID) {
 											SendByteToMelbus(MD_MASTER_ID);
+											SendText(text, textInit);
 											if (textInit) {
-												SendText(text, true);
 												textInit = false;
 												memcpy(text.raw, textHeader, sizeof(textHeader));
-												memcpy(text.text_cmd_st.footer, (uint8_t[]){0x00, 0x80}, 2);
-												text.text_cmd_st.track = track;
-											} else {
-												if (text_requests == 0) {
-													memcpy(text.text_cmd_st.payload, "zestienkarakters", sizeof(text.text_cmd_st.payload));
-												} else {
-													memcpy(text.text_cmd_st.payload, "                ", sizeof(text.text_cmd_st.payload));
-												}
-												text.text_cmd_st.track = track;
-												SendText(text, false);
+												memcpy(text.text_cmd_st.footer, (uint8_t[]){0x00, 0x80}, 2); // TODO: Change (all) anonymous arrays to something that's defined
+												memcpy(&text.raw[sizeof(textHeader)], (uint8_t[]){MD_TEXT_ROW_1, 0x02}, 4);
+												text.text_cmd_st.track = 0x99;
 											}
 											break;
 										}
 									}
 									state = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
 								}
-								//if (text_requests < 3) {
-								//	text_requests++;
-								//	reqMasterFlag = true;
-								//}
 								break;
 							case E_IGN_OFF:
 								powerOn = false;
@@ -341,23 +300,25 @@ int main(void)
 								SendTrackInfo(mdTrackInfo);
 								break;
 							case E_MD_NXT:
-								fixTrack(++track);
+								track = fixTrack(++track);
 								mdTrackInfo[5] = track;
-								nextTrack();
+								SendByteToMelbus(0x00);
+								//nextTrack();
 								break;
 							case E_MD_PRV:
-								fixTrack(--track);
+								track = fixTrack(--track);
 								mdTrackInfo[5] = track;
-								prevTrack();
+								SendByteToMelbus(0x00);
+								//prevTrack();
 								break;
 							case E_MD_CHG:
 								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
 									if (byteIsRead) {
 										byteIsRead = false;
-										command = melbus_ReceivedByte;
+										changeCD(&md, &track, melbus_ReceivedByte);
+										SendByteToMelbus(0x00);
 									}
 								}
-								changeCD(&md, &track, command);
 								if (md > 4) {
 									md = 0;
 								}
@@ -368,21 +329,27 @@ int main(void)
 								break;
 							case E_MD_RTR_3:
 								//text_requests = 0;
-								memcpy(&text.raw[4], (uint8_t[]){MD_TEXT_ROW_3}, 4);
+								memcpy(&text.raw[4], (uint8_t[]){MD_TEXT_ROW_3, 0x01}, 4);
+								fixText(text_array, "testText03");
+								memcpy(text.text_cmd_st.payload, text_array, sizeof(text.text_cmd_st.payload));
 								SendByteToMelbus(0x00);
 								SendByteToMelbus(0x01);
 								reqMasterFlag = true;
 								break;
 							case E_MD_RTR_2:
 								//text_requests = 0;
-								memcpy(&text.raw[4], (uint8_t[]){MD_TEXT_ROW_2}, 4);
+								memcpy(&text.raw[4], (uint8_t[]){0x03, 0x02, 0x03, 0x01}, 4);
+								fixText(text_array, "testText02");
+								memcpy(text.text_cmd_st.payload, text_array, sizeof(text.text_cmd_st.payload));
 								SendByteToMelbus(0x00);
 								SendByteToMelbus(0x01);
 								reqMasterFlag = true;
 								break;
 							case E_MD_RTR:
 								//text_requests = 0;
-								memcpy(&text.raw[4], (uint8_t[]){MD_TEXT_ROW_1}, 4);
+								memcpy(&text.raw[4], (uint8_t[]){0x03, 0x01, 0x03, 0x01}, 4);
+								fixText(text_array, "testText01");
+								memcpy(text.text_cmd_st.payload, text_array, sizeof(text.text_cmd_st.payload));
 								SendByteToMelbus(0x00);
 								SendByteToMelbus(0x01);
 								reqMasterFlag = true;
@@ -401,21 +368,23 @@ int main(void)
 							case E_CDC_NXT:
 								fixTrack(++track);
 								cdcTrackInfo[5] = track;
-								nextTrack();
+								//nextTrack();
+								SendByteToMelbus(0x00);
 								break;
 							case E_CDC_PRV:
 								fixTrack(--track);
 								cdcTrackInfo[5] = track;
-								prevTrack();
+								//prevTrack();
+								SendByteToMelbus(0x00);
 								break;
 							case E_CDC_CHG:
 								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
 									if (byteIsRead) {
 										byteIsRead = false;
-										command = melbus_ReceivedByte;
+										changeCD(&cd, &track, melbus_ReceivedByte);
+										SendByteToMelbus(0x00);
 									}
 								}
-								changeCD(&cd, &track, command);
 								if (cd > 10) {
 									cd = 1;
 								}
@@ -425,21 +394,12 @@ int main(void)
 								cdcTrackInfo[3] = cd;
 								cdcTrackInfo[5] = track;
 								break;
-							case E_CDC_PUP:
-								cdcTrackInfo[1] = cdcTrackInfo[8] = TRACK_STARTBYTE;
-								break;
-							case E_CDC_PDN:
-								if (cmd == E_CDC_PDN) {
-									cdcTrackInfo[1] = cdcTrackInfo[8] = TRACK_STOPBYTE;
-								}
 							case E_MD_PUP: /* Intentional fall-through */
 								mdTrackInfo[1] = TRACK_STARTBYTE;
 								mdTrackInfo[6] = mdTrackInfo[7] = mdTrackInfo[8] = 0;
 								textInitHeader[3] = 0x68;
 								textInitHeader[6] = 0x40;
 								textInitHeader[7] = 0x0;
-								reqMasterFlag = true;
-								textInit = true;
 							case E_MD_PDN: /* Intentional fall-through */
 								if (cmd == E_MD_PDN) {
 									mdTrackInfo[1] = TRACK_STOPBYTE;
@@ -448,8 +408,20 @@ int main(void)
 									textInitHeader[3] = TRACK_STOPBYTE;
 									textInitHeader[6] = 0x80;
 									textInitHeader[7] = 0x99;
-									textInit = true;
-									reqMasterFlag = true;
+									/* Send "closing" text header on power down,
+									 * not sure what the reasons or implications are though
+									 * imiv does this at least...
+									 * */
+								}
+								reqMasterFlag = true;
+								// Only send init on power up/down
+								textInit = true;
+							case E_CDC_PUP: /* Intentional fall-through */
+								cdcTrackInfo[1] = cdcTrackInfo[8] = TRACK_STARTBYTE;
+								// CDC also sends some data with master mode, no idea why, but it works without.
+							case E_CDC_PDN: /* Intentional fall-through */
+								if (cmd == E_CDC_PDN) {
+									cdcTrackInfo[1] = cdcTrackInfo[8] = TRACK_STOPBYTE;
 								}
 							case E_MD_FFW: /* Intentional fall-through */
 							case E_MD_FRW: /* Intentional fall-through */
@@ -602,6 +574,20 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void fixText(char text[17], const char *input) {
+    size_t inputLength = strlen(input);
+
+    if (inputLength >= 16) {
+        strncpy(text, input, 16); // Copy up to 16 characters
+    } else {
+        strcpy(text, input);      // Copy the input string
+        for (size_t i = inputLength; i < 16; ++i) {
+            text[i] = ' ';        // Pad with spaces
+        }
+    }
+    text[16] = '\0';
+}
 
 void resetBitPosition(void) {
 	melbus_Bitposition = 8;

@@ -124,6 +124,18 @@ void resetBitPosition(void);
 //same on powerdown
 #define TRACK_STOPBYTE 0x02
 
+//  Adds TV (A9), DAB (B8). C0 is SAT, but HU803 does not support SAT.
+//#define TV_BASE_ID 0xA9
+//#define TV_RESPONSE_ID 0xAE
+//#define DAB_BASE_ID 0xB8
+//#define DAB_RESPONSE_ID 0xBE
+//#define SAT_BASE_ID 0xC0
+//#define SAT_RESPONSE_ID 0xC6
+//#define INTERNAL_MD_BASE_ID 0x70
+//#define INTERNAL_MD_RESPONSE_ID 0x76
+//#define INTERNAL_CD_BASE_ID 0x80
+//#define INTERNAL_CD_RESPONSE_ID 0x86
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
