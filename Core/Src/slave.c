@@ -61,14 +61,6 @@ void SendCartridgeInfo(byte cartridgeInfo[]) {
 	}
 }
 
-void nextTrack(void) {
-	DELAY(1, ms);
-}
-
-void prevTrack(void) {
-	DELAY(1, ms);
-}
-
 byte fixTrack(byte track) {
 	//cut out A-F in each nibble, and skip "00"
 	byte hn = track >> 4; // high nibble

@@ -10,8 +10,6 @@
 
 void melbusInitReq(void);
 void SendByteToMelbus(byte byteToSend);
-void prevTrack(void);
-void nextTrack(void);
 void SendCartridgeInfo(byte cartridgeInfo[]);
 void SendTrackInfo(byte trackInfo[]);
 byte fixTrack(byte track);

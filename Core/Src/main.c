@@ -44,6 +44,9 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_usart1_rx;
+DMA_HandleTypeDef hdma_usart1_tx;
 
 /* USER CODE BEGIN PV */
 
@@ -52,18 +55,25 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
+static void MX_USART1_UART_Init(void);
 static void MX_NVIC_Init(void);
-void fixText(char text[17], const char *input);
 /* USER CODE BEGIN PFP */
-
+void fixText(char text[17], const char *input);
+static uint8_t nextTrack(void);
+static uint8_t prevTrack(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-volatile byte melbus_ReceivedByte = 0;
-volatile byte melbus_Bitposition = 7;
-volatile bool byteIsRead = false;
+static uint8_t rx_buf[5];
+static volatile bool bt_ok = false;
+static volatile bool bt_powered = false;
+static volatile bool bt_playing = false;
+static volatile bool bt_connected = false;
+static volatile byte melbus_ReceivedByte = 0;
+static volatile byte melbus_Bitposition = 7;
+static volatile bool byteIsRead = false;
 
 enum {
 	E_MRB_1,  // 0
@@ -173,9 +183,12 @@ int main(void) {
 	byte textInitHeader[] = { 0xF9, 0xD8, 0xE1, 0x68, 0x00, 0x00, 0x40, 0x00,
 			0x0C, 0xCC, 0xCC }; // Send this as reply to first MRB2
 	bool reqMasterFlag = false; //set this to request master mode (and sendtext) at a proper time.
-	union text_cmd text = { .raw = {0}};
-	char text_array[17];
+	union text_cmd text = { .raw = { 0 } };
+	char row1[17];
+	char row2[17];
+	char row3[17];
 	byte received = 0x0;
+	byte rows = 0;
 	/* USER CODE END 1 */
 
 	/* MCU Configuration--------------------------------------------------------*/
@@ -196,11 +209,17 @@ int main(void) {
 
 	/* Initialize all configured peripherals */
 	MX_GPIO_Init();
+	MX_DMA_Init();
+	MX_USART1_UART_Init();
 
 	/* Initialize interrupts */
 	MX_NVIC_Init();
 	/* USER CODE BEGIN 2 */
 	melbusInitReq();
+	HAL_UART_Receive_DMA(&huart1, rx_buf, 4);
+	HAL_UART_Transmit_DMA(&huart1, (uint8_t*) "AT+MV\r\n", 7);
+	DELAY(100, ms);
+	HAL_UART_Transmit_DMA(&huart1, (uint8_t*) "AT+MO\r\n", 7);
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
@@ -316,57 +335,40 @@ int main(void) {
 								}
 								SendTrackInfo(mdTrackInfo);
 								break;
-							case E_MD_NXT:
-								track = fixTrack(++track);
-								mdTrackInfo[5] = track;
-								SendByteToMelbus(0x00);
-								//nextTrack();
-								break;
-							case E_MD_PRV:
-								track = fixTrack(--track);
-								mdTrackInfo[5] = track;
-								SendByteToMelbus(0x00);
-								//prevTrack();
-								break;
-							case E_MD_CHG:
-								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
-									if (byteIsRead) {
-										byteIsRead = false;
-										changeCD(&md, &track, melbus_ReceivedByte);
-										SendByteToMelbus(0x00);
-									}
-								}
-								if (md > 4) {
-									md = 0;
-								}
-								mdTrackInfo[3] = md;
-								mdTrackInfo[5] = track;
-								break;
 							case E_MD_NU:
 								break;
 							case E_MD_RTR_3:
 								//text_requests = 0;
-								memcpy(&text.raw[4], (uint8_t[]){MD_TEXT_ROW_3, 0x01}, 4);
-								fixText(text_array, "testText03");
-								memcpy(text.text_cmd_st.payload, text_array, sizeof(text.text_cmd_st.payload));
+								memcpy(&text.raw[4], (uint8_t[] ) {
+										MD_TEXT_ROW_3, 0x01 }, 4);
+								if (rows < 3) {
+									fixText(row3, " ");
+									memcpy(text.text_cmd_st.payload, row3,
+											sizeof(text.text_cmd_st.payload));
+								}
 								SendByteToMelbus(0x00);
 								SendByteToMelbus(0x01);
 								reqMasterFlag = true;
 								break;
 							case E_MD_RTR_2:
 								//text_requests = 0;
-								memcpy(&text.raw[4], (uint8_t[]){0x03, 0x02, 0x03, 0x01}, 4);
-								fixText(text_array, "testText02");
-								memcpy(text.text_cmd_st.payload, text_array, sizeof(text.text_cmd_st.payload));
+								memcpy(&text.raw[4], (uint8_t[] ) { 0x03, 0x02,
+												0x03, 0x01 }, 4);
+								if (rows < 2) {
+									fixText(row2, " ");
+									memcpy(text.text_cmd_st.payload, row2,
+											sizeof(text.text_cmd_st.payload));
+								}
 								SendByteToMelbus(0x00);
 								SendByteToMelbus(0x01);
 								reqMasterFlag = true;
 								break;
 							case E_MD_RTR:
 								//text_requests = 0;
-								memcpy(&text.raw[4], (uint8_t[]){0x03, 0x01, 0x03, 0x01}, 4);
-								fixText(text_array, "testText01");
-								memcpy(text.text_cmd_st.payload, text_array, sizeof(text.text_cmd_st.payload));
+								memcpy(&text.raw[4], (uint8_t[] ) { 0x03, 0x01,
+												0x03, 0x01 }, 4);
+								memcpy(text.text_cmd_st.payload, row1,
+										sizeof(text.text_cmd_st.payload));
 								SendByteToMelbus(0x00);
 								SendByteToMelbus(0x01);
 								reqMasterFlag = true;
@@ -382,18 +384,47 @@ int main(void) {
 								}
 								SendTrackInfo(cdcTrackInfo);
 								break;
+							case E_MD_NXT:
 							case E_CDC_NXT:
-								fixTrack(++track);
-								cdcTrackInfo[5] = track;
-								//nextTrack();
+								track = fixTrack(++track);
+								if (cmd == E_CDC_CHG) {
+									cdcTrackInfo[5] = track;
+								} else {
+									mdTrackInfo[5] = track;
+								}
+								if (nextTrack() > 1) {
+									fixText(row1, "BT not connected!");
+									memcpy(text.text_cmd_st.payload, row1,
+											sizeof(text.text_cmd_st.payload));
+								} else {
+									fixText(row1, "BT playing!");
+									memcpy(text.text_cmd_st.payload, row1,
+											sizeof(text.text_cmd_st.payload));
+								}
 								SendByteToMelbus(0x00);
 								break;
+							case E_MD_PRV:
 							case E_CDC_PRV:
-								fixTrack(--track);
-								cdcTrackInfo[5] = track;
-								//prevTrack();
+								track = fixTrack(--track);
+								if (cmd == E_CDC_CHG) {
+									cdcTrackInfo[5] = track;
+								} else {
+									mdTrackInfo[5] = track;
+								}
+								if (prevTrack() > 1) {
+									rows = 1;
+									fixText(row1, "BT not connected!");
+									memcpy(text.text_cmd_st.payload, row1,
+											sizeof(text.text_cmd_st.payload));
+								} else {
+									rows = 1;
+									fixText(row1, "BT playing!");
+									memcpy(text.text_cmd_st.payload, row1,
+											sizeof(text.text_cmd_st.payload));
+								}
 								SendByteToMelbus(0x00);
 								break;
+							case E_MD_CHG:
 							case E_CDC_CHG:
 								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin)
 										== GPIO_PIN_RESET) {
@@ -404,14 +435,34 @@ int main(void) {
 										SendByteToMelbus(0x00);
 									}
 								}
-								if (cd > 10) {
-									cd = 1;
+								if (cmd == E_CDC_CHG) {
+									if (cd > 10) {
+										cd = 1;
+									}
+									if (cd < 1) {
+										cd = 10;
+									}
+									cdcTrackInfo[3] = cd;
+									cdcTrackInfo[5] = track;
+								} else {
+									if (md > 4) {
+										md = 0;
+									}
+									mdTrackInfo[3] = md;
+									mdTrackInfo[5] = track;
 								}
-								if (cd < 1) {
-									cd = 10;
-								}
-								cdcTrackInfo[3] = cd;
-								cdcTrackInfo[5] = track;
+								break;
+							case E_CDC_FFW: /* Intentional fall-through */
+							case E_MD_FFW: /* Intentional fall-through */
+								HAL_UART_Transmit_DMA(&huart1,
+										(uint8_t*) "AT+MF\r\n", 7);
+								SendByteToMelbus(0x00);
+								break;
+							case E_MD_FRW: /* Intentional fall-through */
+							case E_CDC_FRW: /* Intentional fall-through */
+								HAL_UART_Transmit_DMA(&huart1,
+										(uint8_t*) "AT+MH\r\n", 7);
+								SendByteToMelbus(0x00);
 								break;
 							case E_MD_PUP: /* Intentional fall-through */
 								mdTrackInfo[1] = TRACK_STARTBYTE;
@@ -445,12 +496,9 @@ int main(void) {
 									cdcTrackInfo[1] = cdcTrackInfo[8] =
 									TRACK_STOPBYTE;
 								}
-							case E_MD_FFW: /* Intentional fall-through */
-							case E_MD_FRW: /* Intentional fall-through */
 							case E_MD_SCN: /* Intentional fall-through */
 							case E_MD_RND: /* Intentional fall-through */
-							case E_CDC_FFW: /* Intentional fall-through */
-							case E_CDC_FRW: /* Intentional fall-through */
+
 							case E_CDC_SCN: /* Intentional fall-through */
 							case E_CDC_RND:
 								SendByteToMelbus(0x00);
@@ -546,8 +594,57 @@ void SystemClock_Config(void) {
  */
 static void MX_NVIC_Init(void) {
 	/* EXTI2_IRQn interrupt configuration */
-	HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
+	HAL_NVIC_SetPriority(EXTI2_IRQn, 3, 0);
 	HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+}
+
+/**
+ * @brief USART1 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_USART1_UART_Init(void) {
+
+	/* USER CODE BEGIN USART1_Init 0 */
+
+	/* USER CODE END USART1_Init 0 */
+
+	/* USER CODE BEGIN USART1_Init 1 */
+
+	/* USER CODE END USART1_Init 1 */
+	huart1.Instance = USART1;
+	huart1.Init.BaudRate = 9600;
+	huart1.Init.WordLength = UART_WORDLENGTH_8B;
+	huart1.Init.StopBits = UART_STOPBITS_1;
+	huart1.Init.Parity = UART_PARITY_NONE;
+	huart1.Init.Mode = UART_MODE_TX_RX;
+	huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+	huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+	if (HAL_UART_Init(&huart1) != HAL_OK) {
+		Error_Handler();
+	}
+	/* USER CODE BEGIN USART1_Init 2 */
+
+	/* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+ * Enable DMA controller clock
+ */
+static void MX_DMA_Init(void) {
+
+	/* DMA controller clock enable */
+	__HAL_RCC_DMA2_CLK_ENABLE();
+
+	/* DMA interrupt init */
+	/* DMA2_Stream2_IRQn interrupt configuration */
+	HAL_NVIC_SetPriority(DMA2_Stream2_IRQn, 0, 0);
+	HAL_NVIC_EnableIRQ(DMA2_Stream2_IRQn);
+	/* DMA2_Stream7_IRQn interrupt configuration */
+	HAL_NVIC_SetPriority(DMA2_Stream7_IRQn, 0, 0);
+	HAL_NVIC_EnableIRQ(DMA2_Stream7_IRQn);
+
 }
 
 /**
@@ -563,6 +660,7 @@ static void MX_GPIO_Init(void) {
 	/* GPIO Ports Clock Enable */
 	__HAL_RCC_GPIOC_CLK_ENABLE();
 	__HAL_RCC_GPIOA_CLK_ENABLE();
+	__HAL_RCC_GPIOB_CLK_ENABLE();
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
@@ -593,21 +691,81 @@ static void MX_GPIO_Init(void) {
 /* USER CODE BEGIN 4 */
 
 void fixText(char text[17], const char *input) {
-    size_t inputLength = strlen(input);
+	size_t inputLength = strlen(input);
 
-    if (inputLength >= 16) {
-        strncpy(text, input, 16); // Copy up to 16 characters
-    } else {
-        strcpy(text, input);      // Copy the input string
-        for (size_t i = inputLength; i < 16; ++i) {
-            text[i] = ' ';        // Pad with spaces
-        }
-    }
-    text[16] = '\0';
+	if (inputLength >= 16) {
+		strncpy(text, input, 16); // Copy up to 16 characters
+	} else {
+		strcpy(text, input);      // Copy the input string
+		for (size_t i = inputLength; i < 16; ++i) {
+			text[i] = ' ';        // Pad with spaces
+		}
+	}
+	text[16] = '\0';
 }
 
 void resetBitPosition(void) {
 	melbus_Bitposition = 8;
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+	rx_buf[4] = '\0';
+	HAL_UART_Receive_DMA(&huart1, rx_buf, 4);
+	bt_powered = true;
+	switch (rx_buf[0]) {
+	case 'O':
+		switch (rx_buf[1]) {
+		case 'N':
+		case 'K':
+			bt_ok = true;
+			break;
+		}
+		break;
+	case 'C':
+		switch (rx_buf[1]) {
+		case '0':
+			bt_connected = false;
+			break;
+		case '1':
+			bt_connected = true;
+			break;
+		}
+		break;
+	case 'M':
+		bt_powered = true;
+		switch (rx_buf[1]) {
+		case 'B':
+			bt_playing = true;
+			break;
+		case 'A':
+			bt_playing = false;
+			break;
+		case '0':
+			bt_connected = false;
+			break;
+		}
+		break;
+	case 'I':
+		switch (rx_buf[1]) {
+		case 'I':
+			bt_connected = true;
+			break;
+		case 'A':
+			bt_connected = false;
+		default:
+			printf("command received: %s\r\n", rx_buf);
+		}
+		break;
+	case 'E':
+		if (rx_buf[1] == 'R') {
+			bt_ok = false;
+		}
+		break;
+	default:
+		printf("unrecognised command received: %s\r\n", rx_buf);
+		break;
+	}
+	printf("command received: %s\r\n", rx_buf);
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t pin) {
