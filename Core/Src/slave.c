@@ -14,7 +14,8 @@ void melbusInitReq(void) {
 	HAL_NVIC_DisableIRQ(EXTI2_IRQn);
 
 	// Wait until Busy-line de-asserts (not busy, high) before we pull BUSY low to request init
-	while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {}
+	while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
+	}
 
 	SetPinToOutput(MELBUS_BUSY_Pin);
 	HAL_GPIO_WritePin(GPIOA, MELBUS_BUSY_Pin, GPIO_PIN_RESET);
@@ -33,11 +34,12 @@ void SendByteToMelbus(byte byteToSend) {
 	SetPinToOutput(MELBUS_DATA_Pin);
 	HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, GPIO_PIN_SET);
 	SetPinToInput(MELBUS_CLOCK_Pin);
-	for (int i = 7; i >= 0; i--)
-	{
-		while (HAL_GPIO_ReadPin(GPIOA, MELBUS_CLOCK_Pin) == GPIO_PIN_SET) {} //wait for low clock
+	for (int i = 7; i >= 0; i--) {
+		while (HAL_GPIO_ReadPin(GPIOA, MELBUS_CLOCK_Pin) == GPIO_PIN_SET) {
+		} //wait for low clock
 		HAL_GPIO_WritePin(GPIOA, MELBUS_DATA_Pin, byteToSend & (1 << i));
-		while (HAL_GPIO_ReadPin(GPIOA, MELBUS_CLOCK_Pin) == GPIO_PIN_RESET) {}  //wait for high clock
+		while (HAL_GPIO_ReadPin(GPIOA, MELBUS_CLOCK_Pin) == GPIO_PIN_RESET) {
+		}  //wait for high clock
 	}
 	//Let the value be read by the HU
 	DELAY(5, us);

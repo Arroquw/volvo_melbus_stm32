@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "master.h"
@@ -100,46 +101,44 @@ enum {
 	E_LIST_MAX // handy entry which signifies the size of the command array
 };
 //This list can be quite long. We have approx 700 us between the received bytes.
-const byte commands[E_LIST_MAX][8] = {
-		[E_MRB_1] = MRB_1,  // 0 now we are master and can send stuff (like text) to the display!
-		[E_MI] = MI,     // 1 main init
-		[E_SI] = SI,     // 2 sec init (00 1E ED respond 0xC5 !!)
-		[E_MRB_2] = MRB_2,  // 3 alternative master req bc
-		[E_IGN_OFF] = IGN_OFF, // 4
-		[E_MD_CIR] = MD_CIR, // 5
-		[E_MD_TIR] = MD_TIR, // 6
-		[E_MD_NXT] = MD_NXT, // 7
-		[E_MD_PRV] = MD_PRV, // 8
-		[E_MD_CHG] = MD_CHG, // 9
-		[E_MD_PUP] = MD_PUP, // 10
-		[E_MD_PDN] = MD_PDN, // 11
-		[E_MD_FFW] = MD_FFW, // 12
-		[E_MD_FRW] = MD_FRW, // 13
-		[E_MD_SCN] = MD_SCN, // 14
-		[E_MD_RND] = MD_RND, // 15
-		[E_MD_NU] = MD_NU,   // 16
-		[E_MD_RTR] = MD_RTR, // 17
-		[E_MD_RTR_2] = MD_RTR_2, // 18
-		[E_MD_RTR_3] = MD_RTR_3, // 19
-		[E_CDC_CIR] = CDC_CIR, // 20
-		[E_CDC_TIR] = CDC_TIR, // 21
-		[E_CDC_NXT] = CDC_NXT, // 22
-		[E_CDC_PRV] = CDC_PRV, // 23
-		[E_CDC_CHG] = CDC_CHG, // 24
-		[E_CDC_PUP] = CDC_PUP, // 25
-		[E_CDC_PDN] = CDC_PDN, // 26
-		[E_CDC_FFW] = CDC_FFW, // 27
-		[E_CDC_FRW] = CDC_FRW, // 28
-		[E_CDC_SCN] = CDC_SCN, // 29
-		[E_CDC_RND] = CDC_RND, // 30
-		[E_CDC_NU] = CDC_NU   // 31
-};
+const byte commands[E_LIST_MAX][8] = { [E_MRB_1] = MRB_1, // 0 now we are master and can send stuff (like text) to the display!
+[E_MI] = MI,     // 1 main init
+[E_SI] = SI,     // 2 sec init (00 1E ED respond 0xC5 !!)
+[E_MRB_2] = MRB_2,  // 3 alternative master req bc
+[E_IGN_OFF] = IGN_OFF, // 4
+[E_MD_CIR] = MD_CIR, // 5
+[E_MD_TIR] = MD_TIR, // 6
+[E_MD_NXT] = MD_NXT, // 7
+[E_MD_PRV] = MD_PRV, // 8
+[E_MD_CHG] = MD_CHG, // 9
+[E_MD_PUP] = MD_PUP, // 10
+[E_MD_PDN] = MD_PDN, // 11
+[E_MD_FFW] = MD_FFW, // 12
+[E_MD_FRW] = MD_FRW, // 13
+[E_MD_SCN] = MD_SCN, // 14
+[E_MD_RND] = MD_RND, // 15
+[E_MD_NU] = MD_NU,   // 16
+[E_MD_RTR] = MD_RTR, // 17
+[E_MD_RTR_2] = MD_RTR_2, // 18
+[E_MD_RTR_3] = MD_RTR_3, // 19
+[E_CDC_CIR] = CDC_CIR, // 20
+[E_CDC_TIR] = CDC_TIR, // 21
+[E_CDC_NXT] = CDC_NXT, // 22
+[E_CDC_PRV] = CDC_PRV, // 23
+[E_CDC_CHG] = CDC_CHG, // 24
+[E_CDC_PUP] = CDC_PUP, // 25
+[E_CDC_PDN] = CDC_PDN, // 26
+[E_CDC_FFW] = CDC_FFW, // 27
+[E_CDC_FRW] = CDC_FRW, // 28
+[E_CDC_SCN] = CDC_SCN, // 29
+[E_CDC_RND] = CDC_RND, // 30
+[E_CDC_NU] = CDC_NU   // 31
+		};
 
-int __io_putchar(int ch)
-{
+int __io_putchar(int ch) {
 	// Write character to ITM ch.0
 	ITM_SendChar(ch);
-	return(ch);
+	return (ch);
 }
 
 /* USER CODE END 0 */
@@ -148,8 +147,7 @@ int __io_putchar(int ch)
  * @brief  The application entry point.
  * @retval int
  */
-int main(void)
-{
+int main(void) {
 	/* USER CODE BEGIN 1 */
 	byte lastByte = 0;
 	bool powerOn = true;
@@ -157,22 +155,23 @@ int main(void)
 	long ComTicks = 0;     //age since last received byte
 	long ConnTicks = 0;    //age since last message to SIRIUS SAT
 	long timeout = 1000000; //should be around 10-20 seconds
-	long runOnce = 300000;     //counts down on every received message from HU. Triggers when it is passing 1.
+	long runOnce = 300000; //counts down on every received message from HU. Triggers when it is passing 1.
 	long runPeriodically = 100000; //same as runOnce but resets after each countdown.
-	byte matching[E_LIST_MAX];     //Keep track of every matching byte in the commands array
+	byte matching[E_LIST_MAX]; //Keep track of every matching byte in the commands array
 	byte tircount = 0;
 	byte track = 1;
 	byte md = 0;
 	byte cd = 1;
-	byte mdTrackInfo[] = {0x00, 0x02, 0x00, 0x00, 0x80, 0x99, 0x0C, 0xCC, 0xCC};
-	byte mdCartridgeInfo[] = {0x80, 0x00, 0x0F, 0x04, 0x00, 0x0F};
-	byte cdcTrackInfo[] = {0x00, 0x02, 0x00, 0x01, 0x80, 0x01, 0xC7, 0x0A, 0x02};
-	byte cdcCartridgeInfo[] = {0x00, 0xFC, 0xFF, 0x4A, 0xFC, 0xFF};
+	byte mdTrackInfo[] =
+			{ 0x00, 0x02, 0x00, 0x00, 0x80, 0x99, 0x0C, 0xCC, 0xCC };
+	byte mdCartridgeInfo[] = { 0x80, 0x00, 0x0F, 0x04, 0x00, 0x0F };
+	byte cdcTrackInfo[] =
+			{ 0x00, 0x02, 0x00, 0x01, 0x80, 0x01, 0xC7, 0x0A, 0x02 };
+	byte cdcCartridgeInfo[] = { 0x00, 0xFC, 0xFF, 0x4A, 0xFC, 0xFF };
 	bool textInit = false; // First MRB2 is to initialise sending text
-	byte textHeader[] = {0xFB, 0xD8, 0xFA, 0x00}; // Send this as prefix to text
-	byte textInitHeader[] = {0xF9, 0xD8, 0xE1, 0x68, 0x00, 0x00, 0x40, 0x00, 0x0C, 0xCC, 0xCC }; // Send this as reply to first MRB2
-	//byte textRow = 2; 						TODO: use for sending text
-	//byte customText[36] = "visualapproach";	TODO: send text
+	byte textHeader[] = { 0xFB, 0xD8, 0xFA, 0x00 }; // Send this as prefix to text
+	byte textInitHeader[] = { 0xF9, 0xD8, 0xE1, 0x68, 0x00, 0x00, 0x40, 0x00,
+			0x0C, 0xCC, 0xCC }; // Send this as reply to first MRB2
 	bool reqMasterFlag = false; //set this to request master mode (and sendtext) at a proper time.
 	union text_cmd text = { .raw = {0}};
 	char text_array[17];
@@ -233,7 +232,8 @@ int main(void)
 				for (byte cmd = 0; cmd < E_LIST_MAX; cmd++) {
 					if (lastByte == commands[cmd][byteCounter]) {
 						matching[cmd]++;
-						if ((matching[cmd] == commands[cmd][0]) && (byteCounter == commands[cmd][0])) {
+						if ((matching[cmd] == commands[cmd][0])
+								&& (byteCounter == commands[cmd][0])) {
 							ConnTicks = 0;  //reset age
 							switch (cmd) {
 							case E_MI: /* Intentional fall-through */
@@ -242,11 +242,13 @@ int main(void)
 								textInitHeader[3] = 0x68;
 								textInitHeader[6] = 0x40;
 								textInitHeader[7] = 0x0;
-								memcpy(text.raw, textInitHeader, sizeof(textInitHeader));
+								memcpy(text.raw, textInitHeader,
+										sizeof(textInitHeader));
 								reqMasterFlag = true;
 								textInit = true;
-								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
-									if(byteIsRead) {
+								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin)
+										== GPIO_PIN_RESET) {
+									if (byteIsRead) {
 										byteIsRead = false;
 										received = melbus_ReceivedByte;
 										/*
@@ -256,7 +258,10 @@ int main(void)
 										 * It also goes completely haywire if you respond as every possible device.
 										 * Guess some IDs are reserved?
 										 */
-										if (received > 0xD0 && received < 0xFF && (((received & 0xF) == 0x3) || ((received & 0xE) == 0x08))) {
+										if (received > 0xD0 && received < 0xFF
+												&& (((received & 0xF) == 0x3)
+														|| ((received & 0xE)
+																== 0x08))) {
 											SendByteToMelbus(received | 0x06);
 											received = 0x00;
 										}
@@ -265,7 +270,8 @@ int main(void)
 								break;
 							case E_MRB_1: /* Intentional fall-through */
 							case E_MRB_2:
-								bool state = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
+								bool state = HAL_GPIO_ReadPin(GPIOA,
+								MELBUS_BUSY_Pin);
 								while (state == GPIO_PIN_RESET) {
 									if (byteIsRead) {
 										byteIsRead = false;
@@ -274,15 +280,26 @@ int main(void)
 											SendText(text, textInit);
 											if (textInit) {
 												textInit = false;
-												memcpy(text.raw, textHeader, sizeof(textHeader));
-												memcpy(text.text_cmd_st.footer, (uint8_t[]){0x00, 0x80}, 2); // TODO: Change (all) anonymous arrays to something that's defined
-												memcpy(&text.raw[sizeof(textHeader)], (uint8_t[]){MD_TEXT_ROW_1, 0x02}, 4);
+												memcpy(text.raw, textHeader,
+														sizeof(textHeader));
+												memcpy(text.text_cmd_st.footer,
+														(uint8_t[] ) {
+																		0x00,
+																		0x80 },
+														2); // TODO: Change (all) anonymous arrays to something that's defined
+												memcpy(
+														&text.raw[sizeof(textHeader)],
+														(uint8_t[] ) {
+																MD_TEXT_ROW_1,
+																		0x02 },
+														4);
 												text.text_cmd_st.track = 0x99;
 											}
 											break;
 										}
 									}
-									state = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
+									state = HAL_GPIO_ReadPin(GPIOA,
+									MELBUS_BUSY_Pin);
 								}
 								break;
 							case E_IGN_OFF:
@@ -378,10 +395,12 @@ int main(void)
 								SendByteToMelbus(0x00);
 								break;
 							case E_CDC_CHG:
-								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin) == GPIO_PIN_RESET) {
+								while (HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin)
+										== GPIO_PIN_RESET) {
 									if (byteIsRead) {
 										byteIsRead = false;
-										changeCD(&cd, &track, melbus_ReceivedByte);
+										changeCD(&cd, &track,
+												melbus_ReceivedByte);
 										SendByteToMelbus(0x00);
 									}
 								}
@@ -396,7 +415,8 @@ int main(void)
 								break;
 							case E_MD_PUP: /* Intentional fall-through */
 								mdTrackInfo[1] = TRACK_STARTBYTE;
-								mdTrackInfo[6] = mdTrackInfo[7] = mdTrackInfo[8] = 0;
+								mdTrackInfo[6] = mdTrackInfo[7] =
+										mdTrackInfo[8] = 0;
 								textInitHeader[3] = 0x68;
 								textInitHeader[6] = 0x40;
 								textInitHeader[7] = 0x0;
@@ -417,11 +437,13 @@ int main(void)
 								// Only send init on power up/down
 								textInit = true;
 							case E_CDC_PUP: /* Intentional fall-through */
-								cdcTrackInfo[1] = cdcTrackInfo[8] = TRACK_STARTBYTE;
+								cdcTrackInfo[1] = cdcTrackInfo[8] =
+								TRACK_STARTBYTE;
 								// CDC also sends some data with master mode, no idea why, but it works without.
 							case E_CDC_PDN: /* Intentional fall-through */
 								if (cmd == E_CDC_PDN) {
-									cdcTrackInfo[1] = cdcTrackInfo[8] = TRACK_STOPBYTE;
+									cdcTrackInfo[1] = cdcTrackInfo[8] =
+									TRACK_STOPBYTE;
 								}
 							case E_MD_FFW: /* Intentional fall-through */
 							case E_MD_FRW: /* Intentional fall-through */
@@ -444,7 +466,7 @@ int main(void)
 			}
 			busy = HAL_GPIO_ReadPin(GPIOA, MELBUS_BUSY_Pin);
 		}
-		if (ComTicks == 0 && ConnTicks != 0) {    //print unmatched messages (unknown)
+		if (ComTicks == 0 && ConnTicks != 0) { //print unmatched messages (unknown)
 			for (byte b = 0; b < byteCounter - 1; b++) {
 				printf("%02X  ", melbus_log[b]);
 			}
@@ -472,17 +494,16 @@ int main(void)
 			reqMaster();
 		}
 	}
+	/* USER CODE END 3 */
 }
-/* USER CODE END 3 */
 
 /**
  * @brief System Clock Configuration
  * @retval None
  */
-void SystemClock_Config(void)
-{
-	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+void SystemClock_Config(void) {
+	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
+	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
 
 	/** Configure the main internal regulator output voltage
 	 */
@@ -501,22 +522,20 @@ void SystemClock_Config(void)
 	RCC_OscInitStruct.PLL.PLLN = 100;
 	RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
 	RCC_OscInitStruct.PLL.PLLQ = 4;
-	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-	{
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
 		Error_Handler();
 	}
 
 	/** Initializes the CPU, AHB and APB buses clocks
 	 */
-	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-			|RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+			| RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
 	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
 	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
 	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
 	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
-	{
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK) {
 		Error_Handler();
 	}
 }
@@ -525,8 +544,7 @@ void SystemClock_Config(void)
  * @brief NVIC Configuration.
  * @retval None
  */
-static void MX_NVIC_Init(void)
-{
+static void MX_NVIC_Init(void) {
 	/* EXTI2_IRQn interrupt configuration */
 	HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
 	HAL_NVIC_EnableIRQ(EXTI2_IRQn);
@@ -537,9 +555,8 @@ static void MX_NVIC_Init(void)
  * @param None
  * @retval None
  */
-static void MX_GPIO_Init(void)
-{
-	GPIO_InitTypeDef GPIO_InitStruct = {0};
+static void MX_GPIO_Init(void) {
+	GPIO_InitTypeDef GPIO_InitStruct = { 0 };
 	/* USER CODE BEGIN MX_GPIO_Init_1 */
 	/* USER CODE END MX_GPIO_Init_1 */
 
@@ -564,7 +581,7 @@ static void MX_GPIO_Init(void)
 	HAL_GPIO_Init(MELBUS_CLOCK_GPIO_Port, &GPIO_InitStruct);
 
 	/*Configure GPIO pins : MELBUS_DATA_Pin MELBUS_BUSY_Pin */
-	GPIO_InitStruct.Pin = MELBUS_DATA_Pin|MELBUS_BUSY_Pin;
+	GPIO_InitStruct.Pin = MELBUS_DATA_Pin | MELBUS_BUSY_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
 	GPIO_InitStruct.Pull = GPIO_PULLUP;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -598,8 +615,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t pin) {
 		//Read status of Datapin and set status of current bit in recv_byte
 		if (HAL_GPIO_ReadPin(GPIOA, MELBUS_DATA_Pin) == GPIO_PIN_SET) {
 			melbus_ReceivedByte |= (1 << melbus_Bitposition); //set bit nr [melbus_Bitposition] to "1"
-		}
-		else {
+		} else {
 			melbus_ReceivedByte &= ~(1 << melbus_Bitposition); //set bit nr [melbus_Bitposition] to "0"
 		}
 
@@ -610,12 +626,37 @@ void HAL_GPIO_EXTI_Callback(uint16_t pin) {
 
 			//Reset bitcount to first bit in byte. ALSO do this when toggling clock from IT to input/output
 			melbus_Bitposition = 7;
-		}
-		else {
+		} else {
 			//set bitnumber to address of next bit in byte
 			melbus_Bitposition--;
 		}
 	}
+}
+
+static uint8_t nextTrack(void) {
+	if (bt_powered && bt_connected && bt_playing) {
+		HAL_UART_Transmit_DMA(&huart1, (uint8_t*) "AT+MD\r\n", 7);
+		return 0;
+	} else if (!bt_playing && bt_powered && bt_connected) {
+		HAL_UART_Transmit_DMA(&huart1, (uint8_t*) "AT+MA\r\n", 7);
+		return 1;
+	} else if (!bt_powered || !bt_connected) {
+		HAL_UART_Transmit_DMA(&huart1, (uint8_t*) "AT+MO\r\n", 7);
+	}
+	return 2;
+}
+
+static uint8_t prevTrack(void) {
+	if (bt_powered && bt_connected && bt_playing) {
+		HAL_UART_Transmit_DMA(&huart1, (uint8_t*) "AT+ME\r\n", 7);
+		return 0;
+	} else if (!bt_playing && bt_powered && bt_connected) {
+		HAL_UART_Transmit_DMA(&huart1, (uint8_t*) "AT+MA\r\n", 7);
+		return 1;
+	} else if (!bt_powered || !bt_connected) {
+		HAL_UART_Transmit_DMA(&huart1, (uint8_t*) "AT+MO\r\n", 7);
+	}
+	return 2;
 }
 
 /* USER CODE END 4 */
@@ -624,30 +665,28 @@ void HAL_GPIO_EXTI_Callback(uint16_t pin) {
  * @brief  This function is executed in case of error occurrence.
  * @retval None
  */
-void Error_Handler(void)
-{
+void Error_Handler(void) {
 	/* USER CODE BEGIN Error_Handler_Debug */
 	/* User can add his own implementation to report the HAL error return state */
 	__disable_irq();
-	while (1)
-	{
+	while (1) {
 	}
 	/* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef  USE_FULL_ASSERT
 /**
- * @brief  Reports the name of the source file and the source line number
- *         where the assert_param error has occurred.
- * @param  file: pointer to the source file name
- * @param  line: assert_param error line source number
- * @retval None
- */
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
 void assert_failed(uint8_t *file, uint32_t line)
 {
-	/* USER CODE BEGIN 6 */
+  /* USER CODE BEGIN 6 */
 	/* User can add his own implementation to report the file name and line number,
      ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-	/* USER CODE END 6 */
+  /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

@@ -7,9 +7,11 @@
 #include "pins.h"
 #include "main.h"
 
-GPIO_InitTypeDef GPIO_InitStructInput = { .Mode = GPIO_MODE_INPUT, .Pull = GPIO_NOPULL };
+GPIO_InitTypeDef GPIO_InitStructInput = { .Mode = GPIO_MODE_INPUT, .Pull =
+		GPIO_NOPULL };
 GPIO_InitTypeDef GPIO_InitStructOutput = { .Mode = GPIO_MODE_OUTPUT_OD };
-GPIO_InitTypeDef GPIO_InitStructIT = { .Pin = MELBUS_CLOCK_Pin, .Mode = GPIO_MODE_IT_RISING, .Pull = GPIO_NOPULL };
+GPIO_InitTypeDef GPIO_InitStructIT = { .Pin = MELBUS_CLOCK_Pin, .Mode =
+		GPIO_MODE_IT_RISING, .Pull = GPIO_NOPULL };
 
 void SetClockToInt(void) {
 	resetBitPosition();

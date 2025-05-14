@@ -44,9 +44,9 @@
  * sniff was cut off here sadly
  *
 
--> 1 x x x 0 80 -> title in rows, 16 bytes per row
--> 2 x x x 0 80 ->
--> 3 x x x 0 80 -> title in rows, 16 bytes per row, but not followed by 0x20 0x20 0x20
+ -> 1 x x x 0 80 -> title in rows, 16 bytes per row
+ -> 2 x x x 0 80 ->
+ -> 3 x x x 0 80 -> title in rows, 16 bytes per row, but not followed by 0x20 0x20 0x20
  */
 
 #define TEXTINIT_SIZE 11
@@ -61,7 +61,7 @@ union text_cmd {
 		byte footer[2];
 		byte track;
 		byte payload[16];
-	}text_cmd_st;
+	} text_cmd_st;
 	byte raw[TEXTCMD_SIZE];
 };
 
